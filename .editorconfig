@@ -12,3 +12,6 @@ insert_final_newline = true
 
 [*.txt]
 indent_style = tab
+
+[*.md]
+trim_trailing_whitespace = false
