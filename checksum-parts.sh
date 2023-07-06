@@ -41,7 +41,7 @@ function readOffsetFromFile {
 
     offset_str=$(echo "$last_line" | awk '{print $1}')
     if [[ "${offset_str//[[:space:]]/}" != "${last_line//[[:space:]]/}" ]]; then
-        fail "Malformed file. Expected only offset on the last line, got '$last_line'"
+        fail "Malformed file. Expected only offset on the last line, got '$last_line'. If hash was already calculated, just delete it from last line."
     fi
     if ! isPositiveIntString "$offset_str"; then
         fail "Malformed file. Offset expected at line start, got '$offset_str'."
