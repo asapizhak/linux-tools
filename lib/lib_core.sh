@@ -4,12 +4,9 @@
 # no external command calls here, only pure bash!
 ###############################################################################
 
-# Replace $1 with last valid argument number for the function.
-# [[ "$1" == "${!#}" ]] && fail "Missing last argument."
-
 function fail {
-    msg=${1:-""}
-    code=${2:-1}
+    declare -r msg=${1:-""}
+    declare -r code=${2:-1}
 
     [ -n "$msg" ] && echo >&2 "Error: $msg"
     exit $((code))
@@ -23,18 +20,16 @@ function failWithUsage {
 }
 
 function commandsArePresent {
-    cmd_list=("$@")
-    suppress_echo=${!#}
+    declare suppress_echo=$1
     
     if [[ $suppress_echo =~ ^[0-9]+$ ]]; then
-        cmd_list=("${cmd_list[@]::${#cmd_list[@]}-1}")
+        shift
         [[ $suppress_echo -ne 0 ]] && suppress_echo=1
     else suppress_echo=0
     fi
 
     ret=0
-    for cmd in "${cmd_list[@]}"; do
-        # if [[ "$arg" -eq 1 ]]; then continue; fi
+    for cmd in "$@"; do
         if ! command -v "$cmd" >/dev/null 2>&1; then
             [[ $suppress_echo -eq 0 ]] && echo "Command '$cmd' was not found." >&2
             ret=1
@@ -50,7 +45,7 @@ function ensureCommands {
 function isNameNotTaken {
     name=$1
 
-    if commandsArePresent "$name" 1 || type -t "$name" >/dev/null 2>&1; then
+    if commandsArePresent 1 "$name" || type -t "$name" >/dev/null 2>&1; then
         return 1
     fi
     return 0
