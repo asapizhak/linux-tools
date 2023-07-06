@@ -97,7 +97,7 @@ main() {
     echo2 "--- Begin ---"
 
     block_size=$((1024 * 1024)) # 1MiB
-    part_size_blocks=100
+    part_size_blocks=1024
     part_size_bytes=$((block_size * part_size_blocks))
     # check if offset is multiply of block size
     if ((offset_bytes % block_size != 0)); then
