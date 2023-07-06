@@ -15,6 +15,13 @@ function fail {
     exit $((code))
 }
 
+function failWithUsage {
+    if [[ $(type -t usage) = 'function' ]]; then
+        usage
+    fi
+    fail "$@"
+}
+
 function commandsArePresent {
     cmd_list=("$@")
     suppress_echo=${!#}
