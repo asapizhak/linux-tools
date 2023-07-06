@@ -6,15 +6,23 @@ set -u
 set -e
 # set -x
 
-. lib/lib_string_fn.sh
-. lib/lib_number_fn.sh
 . lib/lib_fs.sh
+. lib/lib_input_args.sh
+. lib/lib_number_fn.sh
+. lib/lib_string_fn.sh
 
 script_name=$(basename "$0")
 
 function usage {
-    echo2 "Usage:"
-    echo2 "    $script_name <input_file>"
+    echo2 "\
+Usage:
+    $script_name -i <input_file> -o <output_file>[ -f][ -b NNNN]
+
+    -i <file>                input file or block device
+    -o <file>                path to output file
+    -f                       force overwriting of output file.
+    -b <size>                set hashable block size (in MiBs)
+"
 }
 
 function readLastFileLine {
@@ -68,16 +76,31 @@ function appendOffsetToFile {
 ###############################################################################
 ### MAIN
 main() {
-    [ $# -ne 1 ] && usage && fail
     if ! commandsArePresent sudo tail awk stat blockdev dd; then fail; fi
 
-    input_file="$1"
+    declare -A opts
+    getInputArgs ':fi:o:b:' opts "$@"
+
+    declare -r input_file="${opts['i']:-''}"
+    [[ ! -r $input_file ]] && fail "Input object '$input_file' does not exist or has no read permission."
+
+    declare -r output_file="${opts['o']:-${input_file}.sums.txt}"
+    [[ $output_file == -* ]] && fail "Invalid output file argument '$output_file'."
+
+    declare overwrite_output_file=0
+    [[ "${opts[f]+value}" ]] && overwrite_output_file=1
+
+    declare -r part_size_blocks="${opts['b']:-'1024'}"
+    if ! isPositiveIntString "$part_size_blocks"; then fail "Invalid block size specified '$part_size_blocks'."; fi
 
     input_size_bytes=-1
     getStorageObjectSize "$input_file" input_size_bytes
     echo "Input size: $input_size_bytes"
 
-    output_file="${input_file}.sums.txt"
+    if [[ $overwrite_output_file -eq 1 ]] && [[ -e $output_file ]]; then
+        echo2 "Output file exists and force overwrite is requested."
+        rm -i "$output_file"
+    fi
 
     offset_bytes=-1
     if [[ ! -e "$output_file" ]]; then
@@ -93,11 +116,9 @@ main() {
         fail "Output file exists but is not a file '$output_file'"
     fi
 
-    ###
     echo2 "--- Begin ---"
 
     block_size=$((1024 * 1024)) # 1MiB
-    part_size_blocks=1024
     part_size_bytes=$((block_size * part_size_blocks))
     # check if offset is multiply of block size
     if ((offset_bytes % block_size != 0)); then
@@ -105,6 +126,8 @@ main() {
     fi
 
     upto=0
+    declare finished_bytes=$offset_bytes
+    declare done_percent=0
     is_start_iteration=1
 
     while [[ $offset_bytes -lt $input_size_bytes ]]; do
@@ -124,8 +147,11 @@ main() {
                 awk '{print $1}'
         )
 
-        echo2 "HASH:$sum_out"
-        printf " %s" "$sum_out" >>"$output_file"
+        finished_bytes=$((upto - 1))
+        if [[ $finished_bytes -gt $input_size_bytes ]]; then finished_bytes=$input_size_bytes; fi
+        numPercentageFrac $((finished_bytes)) $input_size_bytes 2 done_percent
+        echo2 "Hash: $sum_out, $done_percent% finished"
+        printf ";%s" "$sum_out" >>"$output_file"
         echo2 "---"
         offset_bytes=$upto
     done
