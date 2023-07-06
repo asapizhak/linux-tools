@@ -46,3 +46,12 @@ function numDisplayAsSize {
     LC_NUMERIC=C printf -v ${!#} "%.3gTiB" "$size"
 }
 
+function numPercentageFrac {
+    what=$1
+    of_what=$2
+    precision=${3:-2}
+    out=$4
+
+    percent=$(echo "scale=$precision; $what * 100 / $of_what" | bc)
+    LC_NUMERIC=C printf -v "$out" "%g" "$percent"
+}
