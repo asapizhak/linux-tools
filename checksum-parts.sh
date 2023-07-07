@@ -27,17 +27,18 @@ Usage:
 }
 
 function readLastFileLine {
-    file=$1
-    [[ "$1" == "${!#}" ]] && fail "Missing last argument."
+    declare -r file=$1
+    declare -n f_out=$2
 
     [[ ! -f "$file" ]] && fail "File does not exist, or is not a file '$file'"
 
-    last_line=$(tail -n 1 "$file")
-    # [[ -z "$last_line" ]] && last_line=$(tail -n 2 "$file" | head -n 1)
+    # shellcheck disable=SC2034
+    f_out=$(tail -n 1 "$file")
 }
 
 function readOffsetFromFile {
-    declare -r file=$1
+    declare -r file="$1"
+    declare -n f_out=$2
 
     declare last_line
     readLastFileLine "$file" last_line
@@ -56,7 +57,8 @@ function readOffsetFromFile {
         fail "Malformed file. Offset expected at line start, got '$offset_str'."
     fi
 
-    printf -v ${!#} "%d" "$offset_str"
+    # shellcheck disable=SC2034
+    printf -v f_out "%d" "$offset_str"
 }
 
 ###############################################################################
@@ -106,16 +108,16 @@ main() {
 
     echo2 "--- Begin ---"
 
-    block_size=$((1024 * 1024)) # 1MiB
-    part_size_bytes=$((block_size * part_size_blocks))
+    declare -ri block_size=$((1024 * 1024)) # 1MiB
+    declare -ri part_size_bytes=$((block_size * part_size_blocks))
     # check if offset is multiply of block size
     if ((offset_bytes % block_size != 0)); then
         fail "Offset is not multiply of block size '$block_size'"
     fi
 
-    upto=0
-    declare finished_bytes=$offset_bytes
-    declare done_percent=0
+    declare -i upto=0
+    declare -i finished_bytes=$offset_bytes
+    declare done_percent
     is_start_iteration=1
 
     while [[ $offset_bytes -lt $input_size_bytes ]]; do
