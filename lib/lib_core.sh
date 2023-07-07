@@ -43,7 +43,7 @@ function ensureCommands {
 }
 
 function isNameNotTaken {
-    name=$1
+    declare -r name=$1
 
     if commandsArePresent 1 "$name" || type -t "$name" >/dev/null 2>&1; then
         return 1
@@ -52,8 +52,8 @@ function isNameNotTaken {
 }
 
 function echo2 {
-    IFS=' '
-    arr=("$@")
-    str="${arr[*]}"
+    declare IFS=' '
+    declare -ar arr=("$@")
+    declare -r str="${arr[*]}"
     echo  >&2 "$str"
 }
