@@ -14,6 +14,7 @@ set -e
 script_name=$(basename "$0")
 
 function usage {
+    # shellcheck disable=SC2317
     echo2 "\
 Usage:
     $script_name -i <input_file> -o <output_file>[ -f][ -b NNNN]
@@ -76,7 +77,7 @@ function appendOffsetToFile {
 ###############################################################################
 ### MAIN
 main() {
-    if ! commandsArePresent sudo tail awk stat blockdev dd; then fail; fi
+    ensureCommands sudo tail awk stat blockdev dd
 
     declare -A opts
     getInputArgs ':fi:o:b:' opts "$@"
@@ -95,7 +96,7 @@ main() {
 
     input_size_bytes=-1
     getStorageObjectSize "$input_file" input_size_bytes
-    echo "Input size: $input_size_bytes"
+    echo2 "Input size: $input_size_bytes"
 
     if [[ $overwrite_output_file -eq 1 ]] && [[ -e $output_file ]]; then
         echo2 "Output file exists and force overwrite is requested."
