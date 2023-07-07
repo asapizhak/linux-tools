@@ -3,20 +3,17 @@
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/lib_core.sh"
 
+ensureCommands stat blockdev
+
 ###############################################################################
 # less external command calls here, more pure bash!
 # function prefix: fs
 # Functions that work with file system, files, devices, dirs, etc here.
 ###############################################################################
 
-# Replace $1 with last valid argument number for the function.
-# [[ "$1" == "${!#}" ]] && fail "Missing last argument."
-
-ensureCommands stat blockdev
-
 function getStorageObjectSize {
-    object="$1"
-    [[ "$1" == "${!#}" ]] && fail "Missing last argument."
+    declare -r object="$1"
+    declare -n f_out=$2
 
     [[ ! -r "$object" ]] && fail "Object '$object' is unreadable."
 
@@ -28,5 +25,6 @@ function getStorageObjectSize {
         fail "Failed to get size: '$object' is not a file, nor a block device."
     fi
 
-    printf -v ${!#} "%d" "$size"
+    # shellcheck disable=SC2034
+    printf -v f_out "%d" "$size"
 }
