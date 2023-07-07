@@ -117,7 +117,7 @@ main() {
 
     declare -i upto=0
     declare -i finished_bytes=$offset_bytes
-    declare done_percent
+    declare percent_done
     is_start_iteration=1
 
     while [[ $offset_bytes -lt $input_size_bytes ]]; do
@@ -139,8 +139,8 @@ main() {
 
         finished_bytes=$((upto - 1))
         if [[ $finished_bytes -gt $input_size_bytes ]]; then finished_bytes=$input_size_bytes; fi
-        numPercentageFrac $((finished_bytes)) $input_size_bytes 2 done_percent
-        echo2 "Hash: $sum_out, $done_percent% finished"
+        numPercentageFrac percent_done $((finished_bytes)) $input_size_bytes 2
+        echo2 "Hash: $sum_out, $percent_done% finished"
         printf ";%s" "$sum_out" >>"$output_file"
         echo2 "---"
         offset_bytes=$upto

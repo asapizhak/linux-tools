@@ -12,25 +12,26 @@ ensureCommands bc
 ###############################################################################
 
 function numDivFrac {
-    a=$1
-    b=$2
-    [[ "$2" == "${!#}" ]] && fail "Missing last argument."
+    declare -r a=$1
+    declare -r b=$2
+    declare -n f_out=$3
 
-    result=$(echo "scale=6; $a / $b" | bc)
-    LC_NUMERIC=C printf -v ${!#} "%f" "$result"
+    declare -r result=$(echo "scale=6; $a / $b" | bc)
+    # shellcheck disable=SC2034
+    LC_NUMERIC=C printf -v f_out "%f" "$result"
 }
 
 function numCompFrac {
-    a=$1
-    op=$2 # >, >=, <, <=
-    b=$3
+    declare -r a=$1
+    declare -r op=$2 # >, >=, <, <=
+    declare -r b=$3
     result=$(echo "$a $op $b" | bc -l)
     [[ $result -eq 1 ]] && return 0 || return 1
 }
 
 function numDisplayAsSize {
-    size=$1
-    [[ "$1" == "${!#}" ]] && fail "Missing last argument."
+    declare size=$1
+    declare -n f_out=$2
 
     if numCompFrac "$size" '<' 1024; then { printf -v ${!#} "%.3gB" "$size"; return 0; }; fi
     numDivFrac "$size" 1024 size
@@ -40,15 +41,18 @@ function numDisplayAsSize {
     numDivFrac "$size" 1024 size
     if numCompFrac "$size" '<' 1024; then { LC_NUMERIC=C printf -v ${!#} "%.3gGiB" "$size"; return 0; }; fi
     numDivFrac "$size" 1024 size
-    LC_NUMERIC=C printf -v ${!#} "%.3gTiB" "$size"
+    # shellcheck disable=SC2034
+    LC_NUMERIC=C printf -v f_out "%.3gTiB" "$size"
 }
 
+# numPercentageFrac out_var "what" "of_what" "precision?"=2
 function numPercentageFrac {
-    what=$1
-    of_what=$2
-    precision=${3:-2}
-    out=$4
+    declare -n f_out=$1
+    declare -r what=$2
+    declare -r of_what=$3
+    declare -r precision=${4:-2}
 
-    percent=$(echo "scale=$precision; $what * 100 / $of_what" | bc)
-    LC_NUMERIC=C printf -v "$out" "%g" "$percent"
+    declare -r percent=$(echo "scale=$precision; $what * 100 / $of_what" | bc)
+    # shellcheck disable=SC2034
+    LC_NUMERIC=C printf -v f_out "%g" "$percent"
 }
