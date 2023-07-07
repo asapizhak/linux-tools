@@ -59,21 +59,6 @@ function readOffsetFromFile {
     printf -v ${!#} "%d" "$offset_str"
 }
 
-function appendOffsetToFile {
-    offset=$1
-    file=$2
-
-    str=''
-    padStr "$offset" 14 str
-    printf "%s" "$str" >>"$file"
-}
-
-# offset_bytes=$((offset_str))
-# check if offset is a multiple of a part size
-# if (( offset_bytes % part_size_bytes != 0 )); then
-#     fail "Offset '$offset_bytes' is not multiple of part size '$part_size_bytes'"
-# fi
-
 ###############################################################################
 ### MAIN
 main() {
@@ -106,7 +91,9 @@ main() {
     offset_bytes=-1
     if [[ ! -e "$output_file" ]]; then
         printf "" >"$output_file"
-        appendOffsetToFile 0 "$output_file"
+        declare offset_str=
+        strPadString "0" 14 offset_str
+        printf "%s" "$offset_str" >>"$output_file"
         offset_bytes=0
         echo2 "Output file was not present, starting from scratch."
     elif [[ -f "$output_file" ]]; then
@@ -134,7 +121,7 @@ main() {
     while [[ $offset_bytes -lt $input_size_bytes ]]; do
         if [[ $is_start_iteration -eq 0 ]]; then
             offset_str=''
-            padStr $offset_bytes 14 offset_str
+            strPadString $offset_bytes 14 offset_str
             printf "\n%s" "$offset_str" >>"$output_file"
         else
             is_start_iteration=0

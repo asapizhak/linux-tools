@@ -9,16 +9,23 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Functions that work with strings here.
 ###############################################################################
 
-# Replace $1 with last valid argument number for the function.
-# [[ "$1" == "${!#}" ]] && fail "Missing last argument."
+function strPadString {
+    declare -r str="$1"
+    declare -i max="${2:-0}"
+    declare -n f_out=${3}
 
-function padStr {
-    str=$1
-    max=${2:-0}
-    [[ "$2" == "${!#}" ]] && fail "Missing last argument."
+    max=$((max))
+    declare -i max_sign
+    [[ $max -ge 0 ]] && max_sign=1 || max_sign=-1
+    max=$((max * max_sign)) # remove sign from max
 
-    [[ ${#str} -gt $((max)) ]] && max=${#str}
-    printf -v ${!#} "%$max.${max#-}s" "$str"
+    declare -ri strlen=${#str}
+    [[ $max -lt $strlen ]] && max=$strlen
+
+    max=$((max * max_sign)) # put max sign back
+
+    # shellcheck disable=SC2034
+    printf -v f_out "%$max.${max#-}s" "$str"
 }
 
 function isPositiveIntString {
