@@ -29,6 +29,6 @@ function strPadString {
 }
 
 function isPositiveIntString {
-    str=$1
+    declare -r str=$1
     [[ $str =~ ^[0-9]+$ ]] && return 0 || return 1
 }

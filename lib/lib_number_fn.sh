@@ -3,16 +3,13 @@
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/lib_core.sh"
 
+ensureCommands bc
+
 ###############################################################################
 # no external command calls here, only pure bash!
 # function prefix: num
 # Functions that work with numbers here.
 ###############################################################################
-
-# Replace $1 with last valid argument number for the function.
-# [[ "$1" == "${!#}" ]] && fail "Missing last argument."
-
-ensureCommands bc
 
 function numDivFrac {
     a=$1

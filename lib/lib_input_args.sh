@@ -15,7 +15,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 #       optstring should start with ":", also if parameter needs argument, it should be followed by ":"
 function getInputArgs {
     declare -n f_out=$1
-    declare argspec=$2
+    declare -r argspec="$2"
     shift 2
 
     declare OPTIND opt
