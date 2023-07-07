@@ -37,9 +37,9 @@ function readLastFileLine {
 }
 
 function readOffsetFromFile {
-    file=$1
+    declare -r file=$1
 
-    last_line=
+    declare last_line
     readLastFileLine "$file" last_line
     [[ -z "$last_line" ]] && fail "Failed to read offset: last line was empty"
 
@@ -48,7 +48,7 @@ function readOffsetFromFile {
         exit 0
     }
 
-    offset_str=$(echo "$last_line" | awk '{print $1}')
+    declare -r offset_str=$(echo "$last_line" | awk '{print $1}')
     if [[ "${offset_str//[[:space:]]/}" != "${last_line//[[:space:]]/}" ]]; then
         fail "Malformed file. Expected only offset on the last line, got '$last_line'. If hash was already calculated, just delete it from last line."
     fi
@@ -65,7 +65,7 @@ main() {
     ensureCommands sudo tail awk stat blockdev dd
 
     declare -A opts
-    getInputArgs ':fi:o:b:' opts "$@"
+    getInputArgs opts ':fi:o:b:' "$@"
 
     declare -r input_file="${opts['i']:-''}"
     [[ ! -r $input_file ]] && fail "Input object '$input_file' does not exist or has no read permission."
@@ -79,7 +79,7 @@ main() {
     declare -r part_size_blocks="${opts['b']:-'1024'}"
     if ! isPositiveIntString "$part_size_blocks"; then fail "Invalid block size specified '$part_size_blocks'."; fi
 
-    input_size_bytes=-1
+    declare -i input_size_bytes=-1
     getStorageObjectSize "$input_file" input_size_bytes
     echo2 "Input size: $input_size_bytes"
 
@@ -88,7 +88,7 @@ main() {
         rm -i "$output_file"
     fi
 
-    offset_bytes=-1
+    declare -i offset_bytes=-1
     if [[ ! -e "$output_file" ]]; then
         printf "" >"$output_file"
         declare offset_str=
