@@ -52,8 +52,19 @@ function isNameNotTaken {
 }
 
 function echo2 {
-    declare IFS=' '
-    declare -ar arr=("$@")
-    declare -r str="${arr[*]}"
-    echo  >&2 "$str"
+    echo >&2 "$@"
+}
+
+function printf2 {
+    # shellcheck disable=SC2059
+    printf >&2 "$@"
+}
+
+function trapWithSigname { # https://stackoverflow.com/a/2183063
+    declare -r func="$1"
+    shift
+    for sig ; do
+        # shellcheck disable=SC2064
+        trap "$func $sig" "$sig"
+    done
 }

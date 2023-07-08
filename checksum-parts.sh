@@ -61,8 +61,11 @@ function readOffsetFromFile {
     printf -v f_out "%d" "$offset_str"
 }
 
-###############################################################################
-### MAIN
+declare sum_err_file
+sum_err_file=$(mktemp)
+declare sum_out_file
+sum_out_file=$(mktemp)
+
 main() {
     ensureCommands sudo tail awk stat blockdev dd
 
@@ -115,7 +118,7 @@ main() {
         fail "Offset is not multiply of block size '$block_size'"
     fi
 
-    declare -i upto=0
+    declare -i upto
     declare -i finished_bytes=$offset_bytes
     declare percent_done
     is_start_iteration=1
@@ -129,19 +132,31 @@ main() {
             is_start_iteration=0
         fi
         upto=$((offset_bytes + part_size_bytes))
-        echo2 "Range: $offset_bytes..$upto of $input_size_bytes"
+        echo2 "Processing range: $offset_bytes..$upto of $input_size_bytes"
         offset_blocks=$((offset_bytes / block_size))
-        sum_out=$(
-            dd if="${input_file}" bs="$block_size" skip="$offset_blocks" count="$part_size_blocks" |
-                sha1sum -b |
-                awk '{print $1}'
-        )
+
+        dd if="${input_file}" bs="$block_size" skip="$offset_blocks" count="$part_size_blocks" 2>"$sum_err_file" | \
+            sha1sum -b 2>"$sum_err_file" | \
+            awk '{print $1}' > "$sum_out_file" 2>"$sum_err_file"
+
+        for errlevel in "${PIPESTATUS[@]}"; do
+            if [[ $errlevel -ne 0 ]]; then
+                echo2 "!!! Checksumming error: !!!"
+                cat <"$sum_err_file" >&2
+                fail
+            fi
+        done
+
+        declare sum_out
+        read -r sum_out <"$sum_out_file"
+        printf ";" >>"$output_file"
+        printf2 "Hash: "
+        printf "%s" "$sum_out" | tee -a "$output_file"
 
         finished_bytes=$((upto - 1))
         if [[ $finished_bytes -gt $input_size_bytes ]]; then finished_bytes=$input_size_bytes; fi
         numPercentageFrac percent_done $((finished_bytes)) $input_size_bytes 2
-        echo2 "Hash: $sum_out, $percent_done% finished"
-        printf ";%s" "$sum_out" >>"$output_file"
+        echo2 ", $percent_done% finished"
         echo2 "---"
         offset_bytes=$upto
     done
@@ -150,6 +165,17 @@ main() {
 
     return 0
 }
+
+declare -i cleanup_run=0
+# shellcheck disable=SC2317
+function cleanup {
+    [[ $cleanup_run -ne 0 ]] && return 0
+    [[ -n $sum_err_file ]] && { rm "$sum_err_file"; sum_err_file=''; }
+    [[ -n $sum_out_file ]] && { rm "$sum_out_file"; sum_out_file=''; }
+    cleanup_run=1
+    echo2 "Cleanup done (${1})"
+}
+trapWithSigname cleanup EXIT SIGINT SIGTERM
 
 main "$@"
 exit $?
