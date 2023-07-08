@@ -21,11 +21,12 @@ function failWithUsage {
 
 function commandsArePresent {
     declare suppress_echo=$1
-    
+
     if [[ $suppress_echo =~ ^[0-9]+$ ]]; then
         shift
         [[ $suppress_echo -ne 0 ]] && suppress_echo=1
-    else suppress_echo=0
+    else
+        suppress_echo=0
     fi
 
     ret=0
@@ -63,7 +64,7 @@ function printf2 {
 function trapWithSigname { # https://stackoverflow.com/a/2183063
     declare -r func="$1"
     shift
-    for sig ; do
+    for sig; do
         # shellcheck disable=SC2064
         trap "$func $sig" "$sig"
     done
