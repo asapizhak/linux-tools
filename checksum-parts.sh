@@ -67,7 +67,7 @@ declare sum_out_file
 sum_out_file=$(mktemp)
 
 main() {
-    ensureCommands sudo tail awk stat blockdev dd
+    ensureCommands sudo tail awk stat blockdev dd mktemp
 
     declare -A opts
     getInputArgs opts ':fi:o:b:' "$@"
