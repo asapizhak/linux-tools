@@ -23,9 +23,13 @@ function uiDisplayList {
     done
 }
 
-# uiListWithSelection selected_index_ref array_ref selection_index? title?
+# uiListWithSelection
+#    out_selected_index
+#    ref_items_array
+#    selection_index?
+#    title?
 function uiListWithSelection {
-    declare -n selected_idx_out=$1
+    declare -n out_selected_idx=$1
     declare -rn list_to_choose=$2
     declare -i selection_idx=${3:-0}
     declare title=${4:-}
@@ -50,13 +54,13 @@ function uiListWithSelection {
             ;;
         $'\n') # Enter
             # shellcheck disable=SC2034
-            selected_idx_out=$selection_idx
+            out_selected_idx=$selection_idx
             return 0
             ;;
         "q")
             echo2 Quit requested
             # shellcheck disable=SC2034
-            selected_idx_out=
+            out_selected_idx=
             return 1
             ;;
         *)
