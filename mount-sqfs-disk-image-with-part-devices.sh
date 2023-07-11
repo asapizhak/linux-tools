@@ -9,6 +9,7 @@ set -e
 . lib/lib_input_args.sh
 # . lib/lib_number_fn.sh
 # . lib/lib_string_fn.sh
+. lib/lib_ui.sh
 
 script_name=$(basename "$0")
 
@@ -20,13 +21,13 @@ Usage:
 "
 }
 
-function getImagesToMount {
+function getSqfsFileList {
     declare -r dir="$1"
-    declare -n f_out=$2
+    declare -n f_out_imgs=$2
+    declare -n f_out_other=$3
 
     [[ ! -d $dir ]] && fail "'$dir' is not a directory."
     [[ ! -x $dir ]] && fail "'$dir' has no traverse access."
-
 
     declare -a files_img=()
     declare -a files_other=()
@@ -34,19 +35,46 @@ function getImagesToMount {
     while IFS= read -r file; do
         case "$file" in
         *.img)
-            files_img+=("$file")
+            f_out_imgs+=("$file")
             ;;
         *)
-            files_other+=("$file")
+            f_out_other+=("$file")
             ;;
         esac
-    done <<< "$(find "$dir" -type f)"
-
-    f_out+=( "${files_img[@]}" "${files_other[@]}" )
+    done <<<"$(find "$dir" -type f)"
 }
 
 declare sqfs_mount_dir
 sqfs_mount_dir=$(mktemp -d)
+
+# getImageToMount arr_files_img arr_files_other out_selected_file
+function getImageToMount {
+    declare -rn files_img=$1
+    declare -rn files_other=$2
+    declare -n out_selected_file=$3
+
+    declare -ri count_img=${#files_img[@]}
+    declare -ri count_other=${#files_other[@]}
+
+    if [[ $((count_img + count_other)) -eq 0 ]]; then
+        fail "No files in sqfs"
+    elif [[ $count_img -eq 1 && $count_other -eq 0 ]]; then
+        out_selected_file="${files_img[0]}"
+    else
+        declare -a files=("${files_img[@]}" "${files_other[@]}")
+        declare -i selected_idx
+        declare -a file_names
+        echo2 "DIR: $sqfs_mount_dir"
+        for file in "${files[@]}"; do
+            declare name=$(realpath --relative-to="$sqfs_mount_dir" "$file")
+            echo2 "N: $name"
+            file_names+=("$name")
+        done
+
+        uiListWithSelection selected_idx file_names 0 "Select image to mount"
+        out_selected_file="${files[$selected_idx]}"
+    fi
+}
 
 declare -i sqfs_mounted=0
 
@@ -61,27 +89,25 @@ main() {
         fail "Image file '$image_file' does not exist or has no read permission."
     fi
 
-    # 0. if luks-encrypted (have .enc.sqfs extension) - decrypt device
-    # mount sqfs image into temp dir
+    # ? if luks-encrypted (have .enc.sqfs extension) - decrypt device
+    # - mount sqfs image into temp dir
     mount -o loop --read-only "$image_file" "$sqfs_mount_dir"
     sqfs_mounted=1
     declare sqfs_loop_device
-    # losetup --find --show "$image_file"
     sqfs_loop_device=$(losetup -j "$image_file")
     echo2 "Sqfs mounted to: $sqfs_loop_device"
-    # show indexed list of image files + other files
-    declare -a files
-    getImagesToMount "$sqfs_mount_dir" files
 
-    # if there is one image file - mount it. Else, give user the aility to select right file
-    # todo:
-    for file in "${files[@]}"; do
-        echo "F:> $(realpath --relative-to="$sqfs_mount_dir" "$file")"
-    done
-    # allow user to choose img file to mount
-    # mount img file from that dir using losetup -P for partitions check
-    # wait for termination
-    # on termination - unmount in reverse order.
+    # - allow user to choose img file to mount
+    declare -a sqfs_files_img sqfs_files_other
+    getSqfsFileList "$sqfs_mount_dir" sqfs_files_img sqfs_files_other
+
+    declare image_to_mount
+    getImageToMount sqfs_files_img sqfs_files_other image_to_mount
+
+    echo2 "Will mount '$image_to_mount'"
+    # - mount selected img file from that dir using losetup -P for partition devices
+    # - wait for termination
+    # - on termination - unmount in reverse order.
 
 }
 
