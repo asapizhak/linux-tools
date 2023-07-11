@@ -21,10 +21,12 @@ Usage:
 "
 }
 
+# getSqfsFileList
+#    dir_path
+#    out_files_arr
 function getSqfsFileList {
     declare -r dir="$1"
-    declare -n f_out_imgs=$2
-    declare -n f_out_other=$3
+    declare -n out_files=$2
 
     [[ ! -d $dir ]] && fail "'$dir' is not a directory."
     [[ ! -x $dir ]] && fail "'$dir' has no traverse access."
@@ -32,47 +34,50 @@ function getSqfsFileList {
     declare -a files_img=()
     declare -a files_other=()
 
+    declare file
     while IFS= read -r file; do
         case "$file" in
         *.img)
-            f_out_imgs+=("$file")
+            files_img+=("$file")
             ;;
         *)
-            f_out_other+=("$file")
+            files_other+=("$file")
             ;;
         esac
     done <<<"$(find "$dir" -type f)"
+
+    # shellcheck disable=SC2034
+    out_files=( "${files_img[@]}" "${files_other[@]}" )
 }
 
 declare sqfs_mount_dir
 sqfs_mount_dir=$(mktemp -d)
 
-# getImageToMount arr_files_img arr_files_other out_selected_file
+# getImageToMount
+#    list_files
+#    out_selected_file
 function getImageToMount {
-    declare -rn files_img=$1
-    declare -rn files_other=$2
-    declare -n out_selected_file=$3
+    declare -rn list_files=$1
+    declare -n out_selected_file=$2
 
-    declare -ri count_img=${#files_img[@]}
-    declare -ri count_other=${#files_other[@]}
+    declare -ri file_count=${#list_files[@]}
 
-    if [[ $((count_img + count_other)) -eq 0 ]]; then
+    if [[ $file_count -eq 0 ]]; then
         fail "No files in sqfs"
-    elif [[ $count_img -eq 1 && $count_other -eq 0 ]]; then
-        out_selected_file="${files_img[0]}"
+    elif [[ $file_count -eq 1 ]]; then
+        out_selected_file="${list_files[0]}"
     else
-        declare -a files=("${files_img[@]}" "${files_other[@]}")
         declare -i selected_idx
         declare -a file_names
         echo2 "DIR: $sqfs_mount_dir"
-        for file in "${files[@]}"; do
-            declare name=$(realpath --relative-to="$sqfs_mount_dir" "$file")
-            echo2 "N: $name"
+        for file in "${list_files[@]}"; do
+            declare name
+            name=$(realpath --relative-to="$sqfs_mount_dir" "$file")
             file_names+=("$name")
         done
 
         uiListWithSelection selected_idx file_names 0 "Select image to mount"
-        out_selected_file="${files[$selected_idx]}"
+        out_selected_file="${list_files[$selected_idx]}"
     fi
 }
 
@@ -98,17 +103,16 @@ main() {
     echo2 "Sqfs mounted to: $sqfs_loop_device"
 
     # - allow user to choose img file to mount
-    declare -a sqfs_files_img sqfs_files_other
-    getSqfsFileList "$sqfs_mount_dir" sqfs_files_img sqfs_files_other
+    declare -a sqfs_files
+    getSqfsFileList "$sqfs_mount_dir" sqfs_files
 
     declare image_to_mount
-    getImageToMount sqfs_files_img sqfs_files_other image_to_mount
+    getImageToMount sqfs_files image_to_mount
 
     echo2 "Will mount '$image_to_mount'"
     # - mount selected img file from that dir using losetup -P for partition devices
     # - wait for termination
     # - on termination - unmount in reverse order.
-
 }
 
 declare -i cleanup_run=0
