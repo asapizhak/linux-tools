@@ -5,20 +5,20 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # uiDisplayList array_ref selection_index? title?
 function uiDisplayList {
-    declare -rn list=$1
+    declare -rn list_to_display=$1
     declare -ri selection_idx=${2:--1}
     declare -r title=${3:-}
 
     echo2
     [[ -n $title ]] && echo2 "VVV $title VVV"
 
-    for idx in "${!list[@]}"; do
+    for idx in "${!list_to_display[@]}"; do
         if [[ $idx -ge 0 && $idx -eq $selection_idx ]]; then
             tput rev
-            printf2 "\e[1m%s\e[0m\n" "${list[$idx]}"
+            printf2 "\e[1m%s\e[0m\n" "${list_to_display[$idx]}"
             tput sgr0
         else
-            printf2 "%s\n" "${list[$idx]}"
+            printf2 "%s\n" "${list_to_display[$idx]}"
         fi
     done
 }
@@ -26,7 +26,7 @@ function uiDisplayList {
 # uiListWithSelection selected_index_ref array_ref selection_index? title?
 function uiListWithSelection {
     declare -n selected_idx_out=$1
-    declare -rn list=$2
+    declare -rn list_to_choose=$2
     declare -i selection_idx=${3:-0}
     declare title=${4:-}
 
@@ -34,7 +34,7 @@ function uiListWithSelection {
 
     # man tput, man terminfo, https://tldp.org/HOWTO/Bash-Prompt-HOWTO/x405.html
     tput sc # save cursor pos before list
-    uiDisplayList files $selection_idx "$title"
+    uiDisplayList list_to_choose $selection_idx "$title"
 
     declare input
     while true; do
@@ -65,11 +65,11 @@ function uiListWithSelection {
         esac
 
         ((selection_idx < 0)) && selection_idx=0
-        ((selection_idx >= ${#list[@]})) && ((selection_idx = ${#list[@]} - 1))
+        ((selection_idx >= ${#list_to_choose[@]})) && ((selection_idx = ${#list_to_choose[@]} - 1))
 
         tput rc # restore cursor pos
         tput ed # clear to the end
 
-        uiDisplayList files $selection_idx "$title"
+        uiDisplayList list_to_choose $selection_idx "$title"
     done
 }
