@@ -12,7 +12,7 @@ function uiDisplayList {
     declare -r title=${3:-}
 
     echo2
-    [[ -n $title ]] && echo2 "   VVV $title VVV"
+    [[ -n $title ]] && printf2 "╔═ $title ═╗\n"
 
     for idx in "${!list_to_display[@]}"; do
         if [[ $idx -ge 0 && $idx -eq $selection_idx ]]; then
@@ -36,7 +36,7 @@ function uiListWithSelection {
     declare -i selection_idx=${3:-0}
     declare title=${4:-}
 
-    [[ -n $title ]] && title="$title, q to quit" || title="q to quit"
+    [[ -n $title ]] && title="$title ═ 'q' to quit" || title="q to quit"
 
     # man tput, man terminfo, https://tldp.org/HOWTO/Bash-Prompt-HOWTO/x405.html
     tput sc # save cursor pos before list
@@ -58,6 +58,9 @@ function uiListWithSelection {
         $'\n') # Enter
             # shellcheck disable=SC2034
             out_selected_idx=$selection_idx
+            # clear selection list to lower log cluttering
+            tput rc
+            tput ed
             tput cnorm
             return 0
             ;;
