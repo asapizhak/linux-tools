@@ -18,8 +18,28 @@ function usage {
     # shellcheck disable=SC2317
     echo2 "\
 Usage:
-    $script_name -i <image_file>
+    $script_name -i <image_file> -d <dir_for_partition_mount>
+
+    -i                       specifies sqfs file that will be mounted
+    -d                       specifies the directory in which subdirs
+                             will be created for image partitions
 "
+}
+
+function validateInputArgs {
+    declare -r image_file=$1
+    declare -r dir_partition_mount=$2
+
+    if [[ ! -f $image_file ]] || [[ ! -r $image_file ]]; then
+        fail "Image file '$image_file' does not exist or has no read permission."
+    fi
+
+    if [[ -z "$dir_partition_mount" ]]; then
+        failWithUsage "Destination directory does not exist ($dir_partition_mount)"; fi
+    if [[ ! -d "$dir_partition_mount" ]]; then
+        failWithUsage "Destination directory is not a directory ($dir_partition_mount)"; fi
+    if [[ ! -w "$dir_partition_mount" ]]; then
+        fail "Destination directory is not writable ($dir_partition_mount)"; fi
 }
 
 # getSqfsFileList
@@ -107,39 +127,66 @@ function mountImageFile {
 }
 
 #
+#    device
+#    out_partitions
+function getPartitions {
+    declare -r device=$1
+    declare -n out_partitions=$2
+
+    for part in "$device"*; do
+        if [[ $part = "$image_mount_device" ]]; then continue; fi
+
+        out_partitions+=("$part")
+    done
+}
+
+#
+#    part_name
+#    out_info ['name', 'label', 'type']
+function getPartitionInfo {
+    declare -r part_name=$1
+    declare -n out_info=$2
+
+    out_info['name']="$part"
+    out_info['label']=$(blkid -o value -s LABEL "$part_name")
+    out_info['type']=$(blkid -o value -s TYPE "$part_name")
+
+    getStorageObjectSize "$part" size
+    declare size_display; numDisplayAsSize "$size" size_display
+
+    # shellcheck disable=SC2034
+    out_info['size']=$size_display
+}
+
+#
 #    out_selected_part
 function selectImagePartitionToMount {
-    declare -n out_selected_part=$1
+    declare -n parts=$1
+    declare -n out_selected_part=$2
 
-    declare -a parts=()
-    for part in "$image_mount_device"*; do
-        [[ $part != "$image_mount_device" ]] && {
-            declare -A part_info
-            part_info['label']=$(blkid -o value -s LABEL "$part")
-            part_info['type']=$(blkid -o value -s TYPE "$part")
-            getStorageObjectSize "$part" size
-            declare size_display; numDisplayAsSize "$size" size_display
-            part_info['size']=$size_display
-            declare info_str
-            arrJoinWith info_str ' ; ' "${part_info[@]}"
-            parts+=("$part ; $info_str")
-        }
+    declare -a parts_with_info=()
+
+    for part in "${parts[@]}"; do
+        declare -A part_info=(); getPartitionInfo "$part" part_info
+
+        declare info_str; arrJoinWith info_str '; ' "${part_info[@]}"
+        parts_with_info+=("$part; $info_str")
     done
 
     declare placeholder_empty="None found. Select to quit"
 
-    if [[ ${#parts[@]} -eq 0 ]]; then
-        parts+=("$placeholder_empty")
+    if [[ ${#parts_with_info[@]} -eq 0 ]]; then
+        parts_with_info+=("$placeholder_empty")
         echo2 "Partitions not found."
     else
-        echo2 "Partitions found: ${#parts[@]}"
+        echo2 "Partitions found: ${#parts_with_info[@]}"
     fi
 
     declare -i selected_idx
-    uiListWithSelection selected_idx parts 0 "Select partition to mount"
+    uiListWithSelection selected_idx parts_with_info 0 "Select partition to mount"
 
-    if [[ ${parts[$selected_idx]} = "$placeholder_empty" ]]; then
-        out_selected_part=''
+    if [[ ${parts_with_info[$selected_idx]} = "$placeholder_empty" ]]; then
+        out_selected_part=
     else
         # shellcheck disable=SC2034
         out_selected_part="${parts[$selected_idx]}"
@@ -147,17 +194,34 @@ function selectImagePartitionToMount {
 }
 
 declare -i sqfs_mounted=0
+declare -a dirs_created=()
+declare -a dirs_mounted=()
+
+function mountPartitionToDir {
+    declare -r partition=$1
+    declare -r dir_mount=$2
+
+    if [[ ! -d "$dir_mount" ]]; then
+        fail "Dir to mount '$partition' does not exist or is not a directory ($dir_mount)"; fi
+
+    mount -o loop --read-only "$partition" "$dir_mount"
+
+    dirs_mounted+=("$dir_mount")
+
+    # declare mount_loop_device; mount_loop_device=$(losetup -j "$dir_mount" | cut -d ':' -f 1)
+    # echo2 "Mounted '$partition' to $mount_loop_device, '$dir_mount'"
+    echo2 "Mounted '$partition' to '$dir_mount'"
+}
 
 main() {
     ensureCommands mktemp losetup realpath blkid blockdev cut
 
     declare -A opts
-    getInputArgs opts ':i:' "$@"
+    getInputArgs opts ':i:d:' "$@"
 
-    declare -r image_file="${opts['i']:-''}"
-    if [[ ! -f $image_file ]] || [[ ! -r $image_file ]]; then
-        fail "Image file '$image_file' does not exist or has no read permission."
-    fi
+    declare -r image_file="${opts['i']:-}"
+    declare -r dir_partition_mount=$"${opts['d']:-}"
+    validateInputArgs "$image_file" "$dir_partition_mount"
 
     # ? if luks-encrypted (have .enc.sqfs extension) - decrypt device
     # - mount sqfs image into temp dir
@@ -179,10 +243,31 @@ main() {
     # - mount selected img file from that dir using losetup -P for partition devices
     mountImageFile "$image_to_mount"
 
+    declare -a dev_partitions=(); getPartitions "$image_mount_device" dev_partitions
+
     declare selected_partition
-    selectImagePartitionToMount selected_partition
-    echo2 "PART: $selected_partition"
+    selectImagePartitionToMount dev_partitions selected_partition
+    echo2 "Will mount '$selected_partition'"
+
+    # mount selected partition into subdir of mount directory
+    declare basename_partition; basename_partition=$(basename "$selected_partition")
+    if [[ -z "$basename_partition" ]]; then fail "Empty basename"; fi
+
+    declare partition_subdir="$basename_partition"
+    declare partition_dir; partition_dir="$dir_partition_mount/$partition_subdir"
+
+    if [[ -e "$partition_dir" ]]; then
+        echo2 "WARN: Partition dir '$partition_dir' already exist"
+        if [[ ! -d "$partition_dir" ]]; then fail "Partition dir '$partition_dir' is not a directory"; fi
+    else
+        mkdir -v "$partition_dir"
+        dirs_created+=("$partition_dir")
+        mountPartitionToDir "$selected_partition" "$partition_dir"
+    fi
+
     # - wait for termination
+    echo2 "Waiting for 3 keystrokes to unmount everything"
+    read -rsn3
     # - on termination - unmount in reverse order.
 }
 
@@ -195,12 +280,24 @@ function cleanup {
     sleep 0.5 # slight delay in case devices were just created and are busy. Not 100% proof but usually enough.
     echo2 "Running cleanup."
     # revert mount operations
+    ## unmount partitions
+    for d in "${dirs_mounted[@]}"; do
+        if ! umount "$d"; then echo2 "Failed to unmount '$d', do it manually!"
+        else echo2 "Unmounted partition from '$d'"
+        fi
+    done
+    ## delete partition mount dirs
+    for d in "${dirs_created[@]}"; do
+        if ! fsDirectoryHasContent "$d"; then echo "Removing empty dir '$d'..."; rm -r "$d"
+        else echo2 "Dir '$d' is not empty, check and remove manually after script run" ; fi
+    done
+    ## unmount image file from device
     [[ -n $image_mount_device ]] && {
         losetup -d "$image_mount_device"
         echo2 "Unmounted image from $image_mount_device."
         image_mount_device=''
     }
-
+    ## unmount squashfs image
     [[ $sqfs_mounted -eq 1 ]] && {
         umount "$sqfs_mount_dir"
         echo2 "Unmounted squashfs."
