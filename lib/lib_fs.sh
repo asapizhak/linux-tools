@@ -31,3 +31,26 @@ function getStorageObjectSize {
     # shellcheck disable=SC2034
     printf -v out_obj_size "%d" "$size"
 }
+
+#
+#    directory
+function fsDirectoryHasContent {
+    declare -r directory=$1
+
+    if [[ -n "$(find "$directory" -mindepth 1 -print -quit)" ]]; then
+        return 0
+    else 
+        return 1
+    fi
+}
+
+#
+#    out_combined
+function fsJoinPaths {
+    declare -n out_combined=$1; shift
+
+    for path in "$@"; do
+        if [[ "$path" == /* ]]; then fail "Cannot join absolute path '$path'"; fi
+        out_combined="${out_combined%/}/$path"
+    done
+}
