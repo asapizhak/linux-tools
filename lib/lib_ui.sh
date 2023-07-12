@@ -40,6 +40,7 @@ function uiListWithSelection {
 
     # man tput, man terminfo, https://tldp.org/HOWTO/Bash-Prompt-HOWTO/x405.html
     tput sc # save cursor pos before list
+    tput civis
     uiDisplayList list_to_choose $selection_idx "$title"
 
     declare input
@@ -57,9 +58,11 @@ function uiListWithSelection {
         $'\n') # Enter
             # shellcheck disable=SC2034
             out_selected_idx=$selection_idx
+            tput cnorm
             return 0
             ;;
         "q")
+            tput cnorm
             echo2 Quit requested
             # shellcheck disable=SC2034
             out_selected_idx=
