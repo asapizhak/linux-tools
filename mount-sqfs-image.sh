@@ -5,9 +5,10 @@ set -e
 # set -x
 
 . lib/lib_core.sh
-# . lib/lib_fs.sh
+. lib/lib_array.sh
+. lib/lib_fs.sh
 . lib/lib_input_args.sh
-# . lib/lib_number_fn.sh
+. lib/lib_number_fn.sh
 # . lib/lib_string_fn.sh
 . lib/lib_ui.sh
 
@@ -105,6 +106,46 @@ function mountImageFile {
     echo2 "Image mounted to $image_mount_device"
 }
 
+#
+#    out_selected_part
+function selectImagePartitionToMount {
+    declare -n out_selected_part=$1
+
+    declare -a parts=()
+    for part in "$image_mount_device"*; do
+        [[ $part != "$image_mount_device" ]] && {
+            declare -A part_info
+            part_info['label']=$(blkid -o value -s LABEL "$part")
+            part_info['type']=$(blkid -o value -s TYPE "$part")
+            getStorageObjectSize "$part" size
+            declare size_display; numDisplayAsSize "$size" size_display
+            part_info['size']=$size_display
+            declare info_str
+            arrJoinWith info_str ' ; ' "${part_info[@]}"
+            parts+=("$part ; $info_str")
+        }
+    done
+
+    declare placeholder_empty="None found. Select to quit"
+
+    if [[ ${#parts[@]} -eq 0 ]]; then
+        parts+=("$placeholder_empty")
+        echo2 "Partitions not found."
+    else
+        echo2 "Partitions found: ${#parts[@]}"
+    fi
+
+    declare -i selected_idx
+    uiListWithSelection selected_idx parts 0 "Select partition to mount"
+
+    if [[ ${parts[$selected_idx]} = "$placeholder_empty" ]]; then
+        out_selected_part=''
+    else
+        # shellcheck disable=SC2034
+        out_selected_part="${parts[$selected_idx]}"
+    fi
+}
+
 declare -i sqfs_mounted=0
 
 main() {
@@ -137,6 +178,10 @@ main() {
     echo2 "Will mount '$(getSqfsRelativePath "$image_to_mount")'"
     # - mount selected img file from that dir using losetup -P for partition devices
     mountImageFile "$image_to_mount"
+
+    declare selected_partition
+    selectImagePartitionToMount selected_partition
+    echo2 "PART: $selected_partition"
     # - wait for termination
     # - on termination - unmount in reverse order.
 }
