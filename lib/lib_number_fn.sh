@@ -29,9 +29,12 @@ function numCompFrac {
     [[ $result -eq 1 ]] && return 0 || return 1
 }
 
+#
+#    size_bytes
+#    out_size
 function numDisplayAsSize {
     declare size=$1
-    declare -n f_out=$2
+    declare -n out_size=$2
 
     if numCompFrac "$size" '<' 1024; then { printf -v ${!#} "%.3gB" "$size"; return 0; }; fi
     numDivFrac "$size" 1024 size
@@ -42,7 +45,7 @@ function numDisplayAsSize {
     if numCompFrac "$size" '<' 1024; then { LC_NUMERIC=C printf -v ${!#} "%.3gGiB" "$size"; return 0; }; fi
     numDivFrac "$size" 1024 size
     # shellcheck disable=SC2034
-    LC_NUMERIC=C printf -v f_out "%.3gTiB" "$size"
+    LC_NUMERIC=C printf -v out_size "%.3gTiB" "$size"
 }
 
 # numPercentageFrac out_var "what" "of_what" "precision?"=2

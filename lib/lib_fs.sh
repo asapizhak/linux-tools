@@ -11,9 +11,12 @@ ensureCommands stat blockdev
 # Functions that work with file system, files, devices, dirs, etc here.
 ###############################################################################
 
+#
+#    object
+#    out_obj_size
 function getStorageObjectSize {
     declare -r object="$1"
-    declare -n f_out=$2
+    declare -n out_obj_size=$2
 
     [[ ! -r "$object" ]] && fail "Object '$object' is unreadable."
 
@@ -26,5 +29,5 @@ function getStorageObjectSize {
     fi
 
     # shellcheck disable=SC2034
-    printf -v f_out "%d" "$size"
+    printf -v out_obj_size "%d" "$size"
 }

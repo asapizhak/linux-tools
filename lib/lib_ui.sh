@@ -3,6 +3,8 @@
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/lib_core.sh"
 
+ensureCommands read tput
+
 # uiDisplayList array_ref selection_index? title?
 function uiDisplayList {
     declare -rn list_to_display=$1
@@ -10,15 +12,15 @@ function uiDisplayList {
     declare -r title=${3:-}
 
     echo2
-    [[ -n $title ]] && echo2 "VVV $title VVV"
+    [[ -n $title ]] && echo2 "   VVV $title VVV"
 
     for idx in "${!list_to_display[@]}"; do
         if [[ $idx -ge 0 && $idx -eq $selection_idx ]]; then
             tput rev
-            printf2 "\e[1m%s\e[0m\n" "${list_to_display[$idx]}"
+            printf2 -- "\e[1m- %s\e[0m\n" "${list_to_display[$idx]}"
             tput sgr0
         else
-            printf2 "%s\n" "${list_to_display[$idx]}"
+            printf2 -- "- %s\n" "${list_to_display[$idx]}"
         fi
     done
 }
@@ -47,10 +49,10 @@ function uiListWithSelection {
 
         case $input in
         '[A') # arrow up
-            selection_idx=$((selection_idx-1))
+            selection_idx=$((selection_idx - 1))
             ;;
         '[B') # arrow down
-            ((selection_idx += 1))
+            selection_idx=$((selection_idx + 1))
             ;;
         $'\n') # Enter
             # shellcheck disable=SC2034
@@ -69,7 +71,7 @@ function uiListWithSelection {
         esac
 
         ((selection_idx < 0)) && selection_idx=0
-        ((selection_idx >= ${#list_to_choose[@]})) && ((selection_idx = ${#list_to_choose[@]} - 1))
+        ((selection_idx >= ${#list_to_choose[@]})) && selection_idx=$((${#list_to_choose[@]} - 1))
 
         tput rc # restore cursor pos
         tput ed # clear to the end
