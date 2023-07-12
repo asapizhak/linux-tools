@@ -72,7 +72,7 @@ main() {
     declare -A opts
     getInputArgs opts ':fi:o:b:' "$@"
 
-    declare -r input_file="${opts['i']:-''}"
+    declare -r input_file="${opts['i']:-}"
     [[ ! -r $input_file ]] && fail "Input object '$input_file' does not exist or has no read permission."
 
     declare -r output_file="${opts['o']:-${input_file}.sums.txt}"
@@ -81,7 +81,7 @@ main() {
     declare overwrite_output_file=0
     [[ "${opts[f]+value}" ]] && overwrite_output_file=1
 
-    declare -r part_size_blocks="${opts['b']:-'1024'}"
+    declare -r part_size_blocks="${opts['b']:-1024}"
     if ! isPositiveIntString "$part_size_blocks"; then fail "Invalid block size specified '$part_size_blocks'."; fi
 
     declare -i input_size_bytes=-1
