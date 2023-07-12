@@ -53,6 +53,18 @@ function getSqfsFileList {
 declare sqfs_mount_dir
 sqfs_mount_dir=$(mktemp -d)
 
+#
+#    path
+function getSqfsRelativePath {
+    declare -r path=$1
+
+    if [[ -n $sqfs_mount_dir ]];then
+        printf "%s" "$(realpath --relative-to="$sqfs_mount_dir" "$path")"
+    else
+        printf "%s" "$path"
+    fi
+}
+
 # getImageToMount
 #    list_files
 #    out_selected_file
@@ -69,7 +81,7 @@ function getImageToMount {
     else
         declare -i selected_idx
         declare -a file_names
-        echo2 "DIR: $sqfs_mount_dir"
+
         for file in "${list_files[@]}"; do
             declare name
             name=$(realpath --relative-to="$sqfs_mount_dir" "$file")
@@ -77,14 +89,26 @@ function getImageToMount {
         done
 
         uiListWithSelection selected_idx file_names 0 "Select image to mount"
+        # shellcheck disable=SC2034
         out_selected_file="${list_files[$selected_idx]}"
     fi
+}
+
+declare image_mount_device=''
+
+#
+#    image_file
+function mountImageFile {
+    declare -r image_file="$1"
+
+    image_mount_device=$(losetup --find --show -r -P "$image_file")
+    echo2 "Image mounted to $image_mount_device"
 }
 
 declare -i sqfs_mounted=0
 
 main() {
-    ensureCommands mktemp
+    ensureCommands mktemp losetup realpath blkid blockdev cut
 
     declare -A opts
     getInputArgs opts ':i:' "$@"
@@ -99,18 +123,20 @@ main() {
     mount -o loop --read-only "$image_file" "$sqfs_mount_dir"
     sqfs_mounted=1
     declare sqfs_loop_device
-    sqfs_loop_device=$(losetup -j "$image_file")
-    echo2 "Sqfs mounted to: $sqfs_loop_device"
+    sqfs_loop_device=$(losetup -j "$image_file" | cut -d ':' -f 1)
+    echo2 "Sqfs mounted to: $sqfs_loop_device, $sqfs_mount_dir"
 
     # - allow user to choose img file to mount
+    # shellcheck disable=SC2034
     declare -a sqfs_files
     getSqfsFileList "$sqfs_mount_dir" sqfs_files
 
     declare image_to_mount
     getImageToMount sqfs_files image_to_mount
 
-    echo2 "Will mount '$image_to_mount'"
+    echo2 "Will mount '$(getSqfsRelativePath "$image_to_mount")'"
     # - mount selected img file from that dir using losetup -P for partition devices
+    mountImageFile "$image_to_mount"
     # - wait for termination
     # - on termination - unmount in reverse order.
 }
@@ -120,9 +146,19 @@ declare -i cleanup_run=0
 function cleanup {
     [[ $cleanup_run -ne 0 ]] && return 0
 
+    tput cnorm # reset cursor to normal
+    sleep 0.5 # slight delay in case devices were just created and are busy. Not 100% proof but usually enough.
+    echo2 "Running cleanup."
     # revert mount operations
+    [[ -n $image_mount_device ]] && {
+        losetup -d "$image_mount_device"
+        echo2 "Unmounted image from $image_mount_device."
+        image_mount_device=''
+    }
+
     [[ $sqfs_mounted -eq 1 ]] && {
         umount "$sqfs_mount_dir"
+        echo2 "Unmounted squashfs."
         sqfs_mounted=0
     }
     # clear temp stuff
