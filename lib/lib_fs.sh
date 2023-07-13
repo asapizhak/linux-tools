@@ -49,6 +49,8 @@ function fsDirectoryHasContent {
 function fsJoinPaths {
     declare -n out_combined=$1; shift
 
+    [[ -z "$out_combined" ]] && { out_combined="${1:-}"; shift; }
+
     for path in "$@"; do
         if [[ "$path" == /* ]]; then fail "Cannot join absolute path '$path'"; fi
         out_combined="${out_combined%/}/$path"

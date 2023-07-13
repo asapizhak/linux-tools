@@ -89,3 +89,9 @@ function setup() {
 
     [[ "$status" -ne 0 ]]
 }
+
+@test "fsJoinPaths don't fail when out var is empty and first path is absolute path" {
+    declare out_path=''
+
+    fsJoinPaths out_path '/part1' 'part2' && assert_equal "$out_path" "/part1/part2"
+}
