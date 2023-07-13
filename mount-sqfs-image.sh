@@ -283,6 +283,7 @@ main() {
     # - mount selected img file from that dir using losetup -P for partition devices
     mountImageFile "$image_to_mount"
 
+    # shellcheck disable=SC2034
     declare -a dev_partitions=()
     getPartitions "$image_mount_device" dev_partitions
 
