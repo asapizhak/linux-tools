@@ -173,19 +173,25 @@ function selectImagePartitionToMount {
         parts_with_info+=("$part; $info_str")
     done
 
-    declare placeholder_empty="None found. Select to quit"
+    declare -r placeholder_empty="None found."
+    declare -r placeholder_skip="Don't mount partition"
 
     if [[ ${#parts_with_info[@]} -eq 0 ]]; then
         parts_with_info+=("$placeholder_empty")
         echo2 "Partitions not found."
     else
-        echo2 "Partitions found: ${#parts_with_info[@]}"
+        echo2 "Partitions found:"
+        for p in "${parts[@]}"; do
+            echo2 "    $p"
+        done
+        parts_with_info+=("$placeholder_skip")
     fi
 
     declare -i selected_idx
     uiListWithSelection selected_idx parts_with_info 0 "Select partition to mount"
 
-    if [[ ${parts_with_info[$selected_idx]} = "$placeholder_empty" ]]; then
+    declare -r user_selection="${parts_with_info[$selected_idx]}"
+    if [[ $user_selection = "$placeholder_empty" || $user_selection = "$placeholder_skip" ]]; then
         out_selected_part=
     else
         # shellcheck disable=SC2034
@@ -213,8 +219,40 @@ function mountPartitionToDir {
     echo2 "Mounted '$partition' to '$dir_mount'"
 }
 
+function mountSelectedPartition {
+    declare -r partition=$1
+
+    if [[ -z $partition ]]; then
+        echo2 "No partition, will not mount."
+        return 0
+    fi
+
+    declare basename_partition; basename_partition=$(basename "$partition")
+    if [[ -z "$basename_partition" ]]; then
+        echo2 "Error: empty basename"
+        return 0
+    fi
+
+    declare -r subdir="$basename_partition"
+    declare partition_dir=
+    fsJoinPaths partition_dir "$dir_partition_mount" "$subdir"
+
+    if [[ ! -e "$partition_dir" ]]; then
+        mkdir -v "$partition_dir"
+        dirs_created+=("$partition_dir")
+    else
+        echo2 "Partition dir '$partition_dir' already exist"
+        [[ ! -d "$partition_dir" ]] && echo2 "Partition dir '$partition_dir' is not a directory, won't mount"
+        if mountpoint -q "$partition_dir"; then
+            echo2 "Partition dir '$partition_dir' is already a mount point, won't mount"
+            return 0
+        fi
+    fi
+    mountPartitionToDir "$partition" "$partition_dir"
+}
+
 main() {
-    ensureCommands mktemp losetup realpath blkid blockdev cut
+    ensureCommands mktemp losetup realpath blkid blockdev cut mountpoint
 
     declare -A opts
     getInputArgs opts ':i:d:' "$@"
@@ -243,32 +281,26 @@ main() {
     # - mount selected img file from that dir using losetup -P for partition devices
     mountImageFile "$image_to_mount"
 
-    declare -a dev_partitions=(); getPartitions "$image_mount_device" dev_partitions
+    declare -a dev_partitions=()
+    getPartitions "$image_mount_device" dev_partitions
 
     declare selected_partition
     selectImagePartitionToMount dev_partitions selected_partition
-    echo2 "Will mount '$selected_partition'"
 
     # mount selected partition into subdir of mount directory
-    declare basename_partition; basename_partition=$(basename "$selected_partition")
-    if [[ -z "$basename_partition" ]]; then fail "Empty basename"; fi
-
-    declare partition_subdir="$basename_partition"
-    declare partition_dir; partition_dir="$dir_partition_mount/$partition_subdir"
-
-    if [[ -e "$partition_dir" ]]; then
-        echo2 "WARN: Partition dir '$partition_dir' already exist"
-        if [[ ! -d "$partition_dir" ]]; then fail "Partition dir '$partition_dir' is not a directory"; fi
-    else
-        mkdir -v "$partition_dir"
-        dirs_created+=("$partition_dir")
-        mountPartitionToDir "$selected_partition" "$partition_dir"
-    fi
+    mountSelectedPartition "$selected_partition"
 
     # - wait for termination
-    echo2 "Waiting for 3 keystrokes to unmount everything"
-    read -rsn3
-    # - on termination - unmount in reverse order.
+    echo2 "Now do your work, then press any key 3 times to unmount everything"
+    declare -i i=3
+    printf2 "%d" $i
+    while [[ $i -ne 0 ]]; do
+        read -rsN1
+        ((i--))
+        printf2 "\b%d" $i
+    done
+    printf2 "\b"
+    # - on termination - unmount in reverse order. - done in cleanup
 }
 
 declare -i cleanup_run=0
@@ -288,7 +320,7 @@ function cleanup {
     done
     ## delete partition mount dirs
     for d in "${dirs_created[@]}"; do
-        if ! fsDirectoryHasContent "$d"; then echo "Removing empty dir '$d'..."; rm -r "$d"
+        if ! fsDirectoryHasContent "$d"; then printf2 "Removing empty dir '%s'..." "$d"; rm -r "$d" && echo2 " Removed."
         else echo2 "Dir '$d' is not empty, check and remove manually after script run" ; fi
     done
     ## unmount image file from device
