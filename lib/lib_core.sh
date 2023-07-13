@@ -119,12 +119,12 @@ function printf2 {
         if [[ ${#core_color_names_stack[@]} -gt 0 ]]; then
             unset 'core_color_names_stack[-1]'
         fi
-        declare ret_color=default
+        declare ret_color_name=default
         if [[ ${#core_color_names_stack[@]} -gt 0 ]]; then
-            ret_color="${core_color_names_stack[-1]}"
+            ret_color_name="${core_color_names_stack[-1]}"
         fi
         # shellcheck disable=SC2059
-        printf >&2 "$ret_color"
+        printf >&2 "${COLOR[$ret_color_name]}"
     fi
 }
 
