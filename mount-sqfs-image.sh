@@ -123,7 +123,9 @@ function mountImageFile {
     declare -r image_file="$1"
 
     image_mount_device=$(losetup --find --show -r -P "$image_file")
+    uiPushColor2 'green'
     echo2 "Image mounted to $image_mount_device"
+    uiPopColor2
 }
 
 #
@@ -181,9 +183,11 @@ function selectImagePartitionToMount {
         echo2 "Partitions not found."
     else
         echo2 "Partitions found:"
+        uiPushColor2 'magenta'
         for p in "${parts[@]}"; do
             echo2 "  - $p"
         done
+        uiPopColor2
         parts_with_info+=("$placeholder_skip")
     fi
 
@@ -218,7 +222,13 @@ function mountPartitionToDir {
 
     dirs_mounted+=("$dir_mount")
 
-    echo2 "Mounted '$partition' to '$dir_mount'"
+    uiPushColor2 'green'
+    printf2 "Partition '"
+    uiPushColor2 'magenta'
+    printf2 "%s" "$partition"
+    uiPopColor2
+    echo2 "' mounted to '$dir_mount'"
+    uiPopColor2
 }
 
 function checkAndMountPartitionToSubdir {
@@ -269,7 +279,9 @@ main() {
     sqfs_mounted=1
     declare sqfs_loop_device
     sqfs_loop_device=$(losetup -j "$image_file" | cut -d ':' -f 1)
-    echo2 "Sqfs mounted to: $sqfs_loop_device, $sqfs_mount_dir"
+    uiPushColor2 'green'
+    echo2 "Sqfs mounted to $sqfs_loop_device, $sqfs_mount_dir"
+    uiPopColor2
 
     # - allow user to choose img file to mount
     # shellcheck disable=SC2034
@@ -313,7 +325,9 @@ function cleanup {
 
     tput cnorm # reset cursor to normal
     sleep 0.5 # slight delay in case devices were just created and are busy. Not 100% proof but usually enough.
+    uiPushColor2 'cyan'
     echo2 "Running cleanup."
+    uiPopColor2
     # revert mount operations
     ## unmount partitions
     for d in "${dirs_mounted[@]}"; do
