@@ -90,16 +90,14 @@ function uiListWithSelection {
     done
 }
 
-
-declare -a ui_color_names_stack=()
-
 # Prints output color and adds it to stack
 #    color=default
 function uiPushColor {
     declare -r color_name=${1:=default}
 
+    # shellcheck disable=SC2059
     printf "${COLOR[$color_name]}"
-    stackPush ui_color_names_stack "$color_name"
+    stackPush core_color_names_stack "$color_name"
 }
 
 # Prints output color to STDERR (2) and adds it to stack
@@ -114,8 +112,8 @@ function uiPushColor2 {
 function uiPopColor {
 
     declare color_name
-    stackPop ui_color_names_stack color_name # remove current color
-    stackPop ui_color_names_stack color_name 1 # peek next color
+    stackPop core_color_names_stack color_name # remove current color
+    stackPop core_color_names_stack color_name 1 # peek next color
 
     color_name=${color_name:-default}
 

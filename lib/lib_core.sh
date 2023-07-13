@@ -21,6 +21,8 @@ if [[ ${core__inited:-0} -ne 1 ]]; then
     COLOR['cyan']='\033[0;36m'
     COLOR['white']='\033[0;37m'
     readonly -A COLOR
+
+    declare -ag core_color_names_stack=()
 fi
 
 function fail {
@@ -71,13 +73,59 @@ function isNameNotTaken {
     return 0
 }
 
+# Use F_COLOR with color name for colored output
 function echo2 {
+    declare color_enabled=0
+
+    if declare -p F_COLOR >/dev/null 2>&1 && [[ -n "$F_COLOR" ]]; then
+        color_enabled=1
+        declare -r color="${COLOR[$F_COLOR]}"
+        # shellcheck disable=SC2059
+        printf >&2 "$color"
+        core_color_names_stack+=("$color")
+    fi
+
     echo >&2 "$@"
+
+    if [[ $color_enabled -eq 1 ]]; then
+        if [[ ${#core_color_names_stack[@]} -gt 0 ]]; then
+            unset 'core_color_names_stack[-1]'
+        fi
+        declare ret_color_name=default
+        if [[ ${#core_color_names_stack[@]} -gt 0 ]]; then
+            ret_color_name="${core_color_names_stack[-1]}"
+        fi
+        # shellcheck disable=SC2059
+        printf >&2 "${COLOR[$ret_color_name]}"
+    fi
 }
 
+# Use F_COLOR with color name for colored output
 function printf2 {
+    declare color_enabled=0
+
+    if declare -p F_COLOR >/dev/null 2>&1 && [[ -n "$F_COLOR" ]]; then
+        color_enabled=1
+        declare -r color="${COLOR[$F_COLOR]}"
+        # shellcheck disable=SC2059
+        printf >&2 "$color"
+        core_color_names_stack+=("$color")
+    fi
+
     # shellcheck disable=SC2059
     printf >&2 "$@"
+
+    if [[ $color_enabled -eq 1 ]]; then
+        if [[ ${#core_color_names_stack[@]} -gt 0 ]]; then
+            unset 'core_color_names_stack[-1]'
+        fi
+        declare ret_color=default
+        if [[ ${#core_color_names_stack[@]} -gt 0 ]]; then
+            ret_color="${core_color_names_stack[-1]}"
+        fi
+        # shellcheck disable=SC2059
+        printf >&2 "$ret_color"
+    fi
 }
 
 function trapWithSigname { # https://stackoverflow.com/a/2183063
