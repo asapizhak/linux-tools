@@ -182,7 +182,7 @@ function selectImagePartitionToMount {
     else
         echo2 "Partitions found:"
         for p in "${parts[@]}"; do
-            echo2 "    $p"
+            echo2 "  - $p"
         done
         parts_with_info+=("$placeholder_skip")
     fi
@@ -210,16 +210,18 @@ function mountPartitionToDir {
     if [[ ! -d "$dir_mount" ]]; then
         fail "Dir to mount '$partition' does not exist or is not a directory ($dir_mount)"; fi
 
-    mount -o loop --read-only "$partition" "$dir_mount"
+    if [[ -b $partition ]]; then
+        mount --read-only "$partition" "$dir_mount"
+    else
+        mount -o loop --read-only "$partition" "$dir_mount"
+    fi
 
     dirs_mounted+=("$dir_mount")
 
-    # declare mount_loop_device; mount_loop_device=$(losetup -j "$dir_mount" | cut -d ':' -f 1)
-    # echo2 "Mounted '$partition' to $mount_loop_device, '$dir_mount'"
     echo2 "Mounted '$partition' to '$dir_mount'"
 }
 
-function mountSelectedPartition {
+function checkAndMountPartitionToSubdir {
     declare -r partition=$1
 
     if [[ -z $partition ]]; then
@@ -288,7 +290,7 @@ main() {
     selectImagePartitionToMount dev_partitions selected_partition
 
     # mount selected partition into subdir of mount directory
-    mountSelectedPartition "$selected_partition"
+    checkAndMountPartitionToSubdir "$selected_partition"
 
     # - wait for termination
     echo2 "Now do your work, then press any key 3 times to unmount everything"
