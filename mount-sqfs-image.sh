@@ -30,6 +30,7 @@ function validateInputArgs {
     declare -r image_file=$1
     declare -r dir_partition_mount=$2
 
+    [[ -z $input_file ]] && failWithUsage
     if [[ ! -f $image_file ]] || [[ ! -r $image_file ]]; then
         fail "Image file '$image_file' does not exist or has no read permission."
     fi

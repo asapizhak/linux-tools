@@ -73,10 +73,11 @@ main() {
     getInputArgs opts ':fi:o:b:' "$@"
 
     declare -r input_file="${opts['i']:-}"
-    [[ ! -r $input_file ]] && fail "Input object '$input_file' does not exist or has no read permission."
+    [[ -z $input_file ]] && failWithUsage
+    [[ ! -r $input_file ]] && failWithUsage "Input object '$input_file' does not exist or has no read permission."
 
     declare -r output_file="${opts['o']:-${input_file}.sums.txt}"
-    [[ $output_file == -* ]] && fail "Invalid output file argument '$output_file'."
+    [[ $output_file == -* ]] && failWithUsage "Invalid output file argument '$output_file'."
 
     declare overwrite_output_file=0
     [[ "${opts[f]+value}" ]] && overwrite_output_file=1
