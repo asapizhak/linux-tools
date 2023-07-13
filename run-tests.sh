@@ -2,6 +2,8 @@
 
 BATS_VERSION='1.9.0'
 
+declare -r file_to_run=${1:-}
+
 echo >&2 "Running tests inside docker container..."
 
 if ! docker inspect --type image "bats/bats:$BATS_VERSION" >/dev/null 2>&1; then
@@ -10,4 +12,8 @@ if ! docker inspect --type image "bats/bats:$BATS_VERSION" >/dev/null 2>&1; then
     docker run -it --rm "bats/bats:$BATS_VERSION" "/opt/bats/test"
 fi
 
-docker run -it --rm -v "$PWD:/tests" "bats/bats:$BATS_VERSION" -r /tests/tests
+if [[ -n "$file_to_run" ]]; then
+    docker run -it --rm -v "$PWD:/tests" "bats/bats:$BATS_VERSION" -r "/tests/tests/$file_to_run"
+else
+    docker run -it --rm -v "$PWD:/tests" "bats/bats:$BATS_VERSION" -r /tests/tests
+fi
