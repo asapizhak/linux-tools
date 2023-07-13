@@ -326,9 +326,7 @@ function cleanup {
 
     tput cnorm # reset cursor to normal
     sleep 0.5 # slight delay in case devices were just created and are busy. Not 100% proof but usually enough.
-    uiPushColor2 'cyan'
-    echo2 "Running cleanup."
-    uiPopColor2
+
     # revert mount operations
     ## unmount partitions
     for d in "${dirs_mounted[@]}"; do
