@@ -131,8 +131,22 @@ function printf2 {
 function trapWithSigname { # https://stackoverflow.com/a/2183063
     declare -r func="$1"
     shift
+
+    # shellcheck disable=SC2317
+    function f_proxy {
+        declare -r f=$1
+        shift
+
+        F_COLOR='cyan' echo2 "┌ Running cleanup ($1)..."
+        if "$f" "$@"; then
+            F_COLOR='cyan' echo2 "└ Cleanup finished."
+        else
+            F_COLOR='cyan' echo2 "└ Cleanup failed."
+        fi
+    }
+
     for sig; do
         # shellcheck disable=SC2064
-        trap "$func $sig" "$sig"
+        trap "f_proxy $func $sig" "$sig"
     done
 }
