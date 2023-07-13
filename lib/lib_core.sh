@@ -3,6 +3,25 @@
 ###############################################################################
 # no external command calls here, only pure bash!
 ###############################################################################
+if [[ ${core__inited:-0} -ne 1 ]]; then
+    declare -gir core__inited=1
+
+    if declare -p COLOR >/dev/null 2>&1; then
+        echo >&2 "Variable 'COLOR' was already defined!"
+        exit 1
+    fi
+    # Color variables
+    declare -gA COLOR=()
+    COLOR['default']='\033[0m'
+    COLOR['red']='\033[0;31m'
+    COLOR['green']='\033[0;32m'
+    COLOR['yellow']='\033[0;33m'
+    COLOR['blue']='\033[0;34m'
+    COLOR['magenta']='\033[0;35m'
+    COLOR['cyan']='\033[0;36m'
+    COLOR['white']='\033[0;37m'
+    readonly -A COLOR
+fi
 
 function fail {
     declare -r msg=${1:-""}

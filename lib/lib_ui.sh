@@ -2,6 +2,7 @@
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/lib_core.sh"
+. "$DIR/lib_core_stack.sh"
 
 ensureCommands read tput
 
@@ -87,4 +88,49 @@ function uiListWithSelection {
 
         uiDisplayList list_to_choose $selection_idx "$title"
     done
+}
+
+
+declare -a ui_color_names_stack=()
+
+# Prints output color and adds it to stack
+#    color=default
+function uiPushColor {
+    declare -r color_name=${1:=default}
+
+    printf "${COLOR[$color_name]}"
+    stackPush ui_color_names_stack "$color_name"
+}
+
+# Prints output color to STDERR (2) and adds it to stack
+#    color=default
+function uiPushColor2 {
+    uiPushColor "$@" >&2
+}
+
+# Removes current color from color stack and sets previous color as active.
+# If there are no colors in stack, Resets color.
+#    color=default
+function uiPopColor {
+
+    declare color_name
+    stackPop ui_color_names_stack color_name # remove current color
+    stackPop ui_color_names_stack color_name 1 # peek next color
+
+    color_name=${color_name:-default}
+
+    printf2 "${COLOR[$color_name]}"
+}
+
+# Removes current color from color stack and sets previous color as active to STDERR (2).
+# If there are no colors in stack, Resets color.
+#    color=default
+function uiPopColor2 {
+    uiPopColor >&2
+}
+
+function uiResetColor2 {
+    printf2 "%s" "${COLOR['default']}"
+    # shellcheck disable=SC2034
+    ui_colors_stack=()
 }
