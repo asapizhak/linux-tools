@@ -19,6 +19,7 @@ stackPush() {
 #    out_element
 #    peek=0 - if 1, returns the last element as out, without removing
 stackPop() {
+    # shellcheck disable=SC2178
     declare -n ref_stack=$1
     declare -n out_element=$2
     declare -ri peek=${3:-0}
