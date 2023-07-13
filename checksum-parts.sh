@@ -10,6 +10,7 @@ set -e
 . lib/lib_input_args.sh
 . lib/lib_number_fn.sh
 . lib/lib_string_fn.sh
+. lib/lib_ui.sh
 
 script_name=$(basename "$0")
 
@@ -87,7 +88,8 @@ main() {
 
     declare -i input_size_bytes=-1
     getStorageObjectSize "$input_file" input_size_bytes
-    echo2 "Input size: $input_size_bytes"
+    declare -ri input_size_padding=${#input_size_bytes}
+    echo2 "Input size: $input_size_bytes bytes"
 
     if [[ $overwrite_output_file -eq 1 ]] && [[ -e $output_file ]]; then
         echo2 "Output file exists and force overwrite is requested."
@@ -110,7 +112,7 @@ main() {
         fail "Output file exists but is not a file '$output_file'"
     fi
 
-    echo2 "--- Begin ---"
+    echo2
 
     declare -ri block_size=$((1024 * 1024)) # 1MiB
     declare -ri part_size_bytes=$((block_size * part_size_blocks))
@@ -133,8 +135,9 @@ main() {
             is_start_iteration=0
         fi
         upto=$((offset_bytes + part_size_bytes))
-        echo2 "Processing range: $offset_bytes..$upto of $input_size_bytes"
         offset_blocks=$((offset_bytes / block_size))
+        # echo2 "Processing range: $offset_bytes..$upto of $input_size_bytes"
+        printf2 "%${input_size_padding}s..%-${input_size_padding}d" $offset_bytes $upto
 
         dd if="${input_file}" bs="$block_size" skip="$offset_blocks" count="$part_size_blocks" 2>"$sum_err_file" | \
             sha1sum -b 2>"$sum_err_file" | \
@@ -150,15 +153,13 @@ main() {
 
         declare sum_out
         read -r sum_out <"$sum_out_file"
-        printf ";" >>"$output_file"
-        printf2 "Hash: "
-        printf "%s" "$sum_out" | tee -a "$output_file"
+        printf ";%s" "$sum_out" >>"$output_file"
+        F_COLOR='magenta' printf2 " %s" "$sum_out"
 
         finished_bytes=$((upto - 1))
         if [[ $finished_bytes -gt $input_size_bytes ]]; then finished_bytes=$input_size_bytes; fi
         numPercentageFrac percent_done $((finished_bytes)) $input_size_bytes 2
-        echo2 ", $percent_done% finished"
-        echo2 "---"
+        echo2 " finished $percent_done%"
         offset_bytes=$upto
     done
 
@@ -174,7 +175,6 @@ function cleanup {
     [[ -n $sum_err_file ]] && { rm "$sum_err_file"; sum_err_file=''; }
     [[ -n $sum_out_file ]] && { rm "$sum_out_file"; sum_out_file=''; }
     cleanup_run=1
-    echo2 "Cleanup done (${1})"
 }
 trapWithSigname cleanup EXIT SIGINT SIGTERM
 
