@@ -169,7 +169,7 @@ function selectImagePartitionToMount {
     for part in "${parts[@]}"; do
         declare -A part_info=(); getPartitionInfo "$part" part_info
 
-        declare info_str; arrJoinWith info_str '; ' "${part_info[@]}"
+        declare info_str; arrJoin info_str '; ' "${part_info[@]}"
         parts_with_info+=("$part; $info_str")
     done
 

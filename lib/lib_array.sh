@@ -7,7 +7,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 #    out_string
 #    delimiter
 #    $@ - elements
-function arrJoinWith { # https://stackoverflow.com/a/17841619
+function arrJoin { # https://stackoverflow.com/a/17841619
     declare -n out_string=$1
     declare -r delimiter=${2-}
     declare -r first_elem=${3-}
