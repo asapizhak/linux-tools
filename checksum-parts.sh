@@ -67,6 +67,10 @@ sum_err_file=$(mktemp)
 declare sum_out_file
 sum_out_file=$(mktemp)
 
+# TODO: show the output file location on start
+# TODO: deal with situation when dir to output file does not exist
+# TODO: maybe, ask not for output file name, but for the object name (external-lin-home, etc),
+#       and place a file into ./out/ e.g., or a separate option for output dir.
 main() {
     ensureCommands sudo tail awk stat blockdev dd mktemp
 
