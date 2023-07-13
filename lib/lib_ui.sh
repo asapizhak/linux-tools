@@ -5,7 +5,10 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 ensureCommands read tput
 
-# uiDisplayList array_ref selection_index? title?
+#
+#    array_ref
+#    selection_index?
+#    title?
 function uiDisplayList {
     declare -rn list_to_display=$1
     declare -ri selection_idx=${2:--1}
