@@ -18,14 +18,14 @@ function getStorageObjectSize {
     declare -r object="$1"
     declare -n out_obj_size=$2
 
-    [[ ! -r "$object" ]] && fail "Object '$object' is unreadable."
+    [[ ! -r "$object" ]] && coreFailExit "Object '$object' is unreadable."
 
     if [[ -f "$object" ]]; then
         size=$(stat -c "%s" "$object")
     elif [[ -b "$object" ]]; then
         size=$(blockdev --getsize64 "$object")
     else
-        fail "Failed to get size: '$object' is not a file, nor a block device."
+        coreFailExit "Failed to get size: '$object' is not a file, nor a block device."
     fi
 
     # shellcheck disable=SC2034

@@ -31,7 +31,7 @@ function readLastFileLine {
     declare -r file=$1
     declare -n f_out=$2
 
-    [[ ! -f "$file" ]] && fail "File does not exist, or is not a file '$file'"
+    [[ ! -f "$file" ]] && coreFailExit "File does not exist, or is not a file '$file'"
 
     # shellcheck disable=SC2034
     f_out=$(tail -n 1 "$file")
@@ -43,7 +43,7 @@ function readOffsetFromFile {
 
     declare last_line
     readLastFileLine "$file" last_line
-    [[ -z "$last_line" ]] && fail "Failed to read offset: last line was empty"
+    [[ -z "$last_line" ]] && coreFailExit "Failed to read offset: last line was empty"
 
     [[ ${last_line//[[:space:]]/} = 'end' ]] && {
         echo2 "Hashes are already calculated, exiting."
@@ -52,10 +52,10 @@ function readOffsetFromFile {
 
     declare -r offset_str=$(echo "$last_line" | awk '{print $1}')
     if [[ "${offset_str//[[:space:]]/}" != "${last_line//[[:space:]]/}" ]]; then
-        fail "Malformed file. Expected only offset on the last line, got '$last_line'. If hash was already calculated, just delete it from last line."
+        coreFailExit "Malformed file. Expected only offset on the last line, got '$last_line'. If hash was already calculated, just delete it from last line."
     fi
     if ! isPositiveIntString "$offset_str"; then
-        fail "Malformed file. Offset expected at line start, got '$offset_str'."
+        coreFailExit "Malformed file. Offset expected at line start, got '$offset_str'."
     fi
 
     # shellcheck disable=SC2034
@@ -79,16 +79,16 @@ main() {
 
     declare -r input_file="${opts['i']:-}"
     [[ -z $input_file ]] && failWithUsage
-    [[ ! -r $input_file ]] && failWithUsage "Input object '$input_file' does not exist or has no read permission."
+    [[ ! -r $input_file ]] && coreFailExitWithUsage "Input object '$input_file' does not exist or has no read permission."
 
     declare -r output_file="${opts['o']:-${input_file}.sums.txt}"
-    [[ $output_file == -* ]] && failWithUsage "Invalid output file argument '$output_file'."
+    [[ $output_file == -* ]] && coreFailExitWithUsage "Invalid output file argument '$output_file'."
 
     declare overwrite_output_file=0
     [[ "${opts[f]+value}" ]] && overwrite_output_file=1
 
     declare -r part_size_blocks="${opts['b']:-1024}"
-    if ! isPositiveIntString "$part_size_blocks"; then fail "Invalid block size specified '$part_size_blocks'."; fi
+    if ! isPositiveIntString "$part_size_blocks"; then coreFailExit "Invalid block size specified '$part_size_blocks'."; fi
 
     declare -i input_size_bytes=-1
     getStorageObjectSize "$input_file" input_size_bytes
@@ -113,7 +113,7 @@ main() {
         readOffsetFromFile "$output_file" offset_bytes
         echo2 "Starting offset: $offset_bytes"
     else
-        fail "Output file exists but is not a file '$output_file'"
+        coreFailExit "Output file exists but is not a file '$output_file'"
     fi
 
     echo2
@@ -122,7 +122,7 @@ main() {
     declare -ri part_size_bytes=$((block_size * part_size_blocks))
     # check if offset is multiply of block size
     if ((offset_bytes % block_size != 0)); then
-        fail "Offset is not multiply of block size '$block_size'"
+        coreFailExit "Offset is not multiply of block size '$block_size'"
     fi
 
     declare -i upto

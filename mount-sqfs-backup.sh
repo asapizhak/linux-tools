@@ -32,15 +32,15 @@ function validateInputArgs {
 
     [[ -z $image_file ]] && failWithUsage
     if [[ ! -f $image_file ]] || [[ ! -r $image_file ]]; then
-        fail "Image file '$image_file' does not exist or has no read permission."
+        coreFailExit "Image file '$image_file' does not exist or has no read permission."
     fi
 
     if [[ -z "$dir_partition_mount" ]]; then
-        failWithUsage "Destination directory does not exist ($dir_partition_mount)"; fi
+        coreFailExitWithUsage "Destination directory does not exist ($dir_partition_mount)"; fi
     if [[ ! -d "$dir_partition_mount" ]]; then
-        failWithUsage "Destination directory is not a directory ($dir_partition_mount)"; fi
+        coreFailExitWithUsage "Destination directory is not a directory ($dir_partition_mount)"; fi
     if [[ ! -w "$dir_partition_mount" ]]; then
-        fail "Destination directory is not writable ($dir_partition_mount)"; fi
+        coreFailExit "Destination directory is not writable ($dir_partition_mount)"; fi
 }
 
 # getSqfsFileList
@@ -50,8 +50,8 @@ function getSqfsFileList {
     declare -r dir="$1"
     declare -n out_files=$2
 
-    [[ ! -d $dir ]] && fail "'$dir' is not a directory."
-    [[ ! -x $dir ]] && fail "'$dir' has no traverse access."
+    [[ ! -d $dir ]] && coreFailExit "'$dir' is not a directory."
+    [[ ! -x $dir ]] && coreFailExit "'$dir' has no traverse access."
 
     declare -a files_img=()
     declare -a files_other=()
@@ -97,7 +97,7 @@ function getImageToMount {
     declare -ri file_count=${#list_files[@]}
 
     if [[ $file_count -eq 0 ]]; then
-        fail "No files in sqfs"
+        coreFailExit "No files in sqfs"
     elif [[ $file_count -eq 1 ]]; then
         out_selected_file="${list_files[0]}"
     else
@@ -213,7 +213,7 @@ function mountPartitionToDir {
     declare -r dir_mount=$2
 
     if [[ ! -d "$dir_mount" ]]; then
-        fail "Dir to mount '$partition' does not exist or is not a directory ($dir_mount)"; fi
+        coreFailExit "Dir to mount '$partition' does not exist or is not a directory ($dir_mount)"; fi
 
     if [[ -b $partition ]]; then
         mount --read-only "$partition" "$dir_mount"

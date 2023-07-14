@@ -25,19 +25,25 @@ if [[ ${core__inited:-0} -ne 1 ]]; then
     declare -ag core_color_names_stack=()
 fi
 
-function fail {
+function coreFailExit {
     declare -r msg=${1:-""}
-    declare -r code=${2:-1}
+    declare -ri code=$(( "${2:-1}" ))
 
     [ -n "$msg" ] && echo >&2 "Error: $msg"
-    exit $((code))
+
+    if [[ $code -ne 0 ]]; then
+        exit $code
+    else
+        echo >&2 "Failed to coreFailExit with success code 0"
+        exit 1
+    fi
 }
 
-function failWithUsage {
+function coreFailExitWithUsage {
     if [[ $(type -t usage) = 'function' ]]; then
         usage
     fi
-    fail "$@"
+    coreFailExit "$@"
 }
 
 function commandsArePresent {
@@ -61,7 +67,7 @@ function commandsArePresent {
 }
 
 function ensureCommands {
-    if ! commandsArePresent "$@"; then fail "Missing required commands"; fi
+    if ! commandsArePresent "$@"; then coreFailExit "Missing required commands"; fi
 }
 
 function isNameNotTaken {

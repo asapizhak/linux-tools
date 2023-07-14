@@ -23,10 +23,10 @@ function getInputArgs {
     while getopts "$argspec" opt; do
         case $opt in
         :) # missing option argument
-            failWithUsage "Missing argument for -$OPTARG"
+            coreFailExitWithUsage "Missing argument for -$OPTARG"
             ;;
         \?) # unknown option
-            failWithUsage "Unknown option '$OPTARG'"
+            coreFailExitWithUsage "Unknown option '$OPTARG'"
             ;;
         *)
             # shellcheck disable=SC2034
