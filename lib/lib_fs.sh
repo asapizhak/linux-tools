@@ -52,7 +52,10 @@ function fsJoinPaths {
     [[ -z "$out_combined" ]] && { out_combined="${1:-}"; shift; }
 
     for path in "$@"; do
-        if [[ "$path" == /* ]]; then fail "Cannot join absolute path '$path'"; fi
+        if [[ "$path" == /* ]]; then
+            F_COLOR='red' echo2 "Cannot join absolute path '$path'"
+            return 1
+        fi
         out_combined="${out_combined%/}/$path"
     done
 }
