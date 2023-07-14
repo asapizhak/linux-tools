@@ -1,34 +1,15 @@
 #!/usr/bin/env bats
 
+load testhelper.bash
+
 function setup() {
-    bats_load_library bats-support
-    bats_load_library bats-assert
+    . "$BATS_WORKSPACE/build/lib/lib_fs.sh"
 
-    batslib_decorate() { # workaround for expected/actual values can't be seen when test failing
-        exec 1>&2
-        echo
-        echo "-- $1 --"
-        cat -
-        echo '--'
-        echo
-    }
+    testhelpGenericSetup
+}
 
-    #
-    #    actual
-    #    expected
-    assert_equal() {
-    if [[ $1 != "$2" ]]; then
-        batslib_print_kv_single_or_multi 8 \
-        'expected' "'$2'" \
-        'actual'   "'$1'" \
-        | batslib_decorate 'values do not equal' \
-        | fail
-    fi
-  }
-
-    DIR="$( cd "$( dirname "$BATS_TEST_FILENAME" )" >/dev/null 2>&1 && pwd )"
-    
-    . "$DIR/../lib/lib_fs.sh"
+@test "smoke" {
+    return 0
 }
 
 @test "fsDirectoryHasContent returns OK status when there is a subdir" {
@@ -82,12 +63,13 @@ function setup() {
     assert_equal "$out_path" "/part1/part2"
 }
 
-@test "fsJoinPaths fails when join absolute path" {
+@test "fsJoinPaths fails when joining absolute path" {
     declare out_path='/part1'
 
+    # somehow "run !" does not work here, just passes ok
     run fsJoinPaths out_path '/part2'
 
-    [[ "$status" -ne 0 ]]
+    assert_not_equal "$status" 0 "Status code"
 }
 
 @test "fsJoinPaths don't fail when out var is empty and first path is absolute path" {

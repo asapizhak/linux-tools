@@ -1,14 +1,16 @@
 #!/usr/bin/env bats
 
-DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" >/dev/null 2>&1 && pwd)"
-. "$DIR/testhelper.bash"
+load testhelper.bash
 
 function setup() {
-    . "$DIR/../lib/lib_array.sh"
+    . "$BATS_WORKSPACE/build/lib/lib_array.sh"
 
     testhelpGenericSetup
 }
 
+@test "smoke" {
+    return 0
+}
 
 @test "arrJoin works" {
     declare output=

@@ -1,0 +1,3 @@
+#! /usr/bin/env bash
+
+BATS_WORKSPACE="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"

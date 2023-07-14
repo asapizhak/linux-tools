@@ -1,10 +1,9 @@
 #!/usr/bin/env bats
 
-DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" >/dev/null 2>&1 && pwd)"
-. "$DIR/testhelper.bash"
+load testhelper.bash
 
 function setup() {
-    . "$DIR/../lib/lib_core_stack.sh"
+    . "$BATS_WORKSPACE/build/lib/lib_core_stack.sh"
 
     testhelpGenericSetup
 }
