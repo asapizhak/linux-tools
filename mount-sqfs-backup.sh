@@ -236,7 +236,7 @@ function checkAndMountPartitionToSubdir {
     declare -r partition=$1
 
     if [[ -z $partition ]]; then
-        echo2 "No partition, will not mount."
+        echo2 "No partition will be mount."
         return 0
     fi
 
@@ -307,15 +307,14 @@ main() {
     checkAndMountPartitionToSubdir "$selected_partition"
 
     # - wait for termination
-    echo2 "Now do your work, then press any key 3 times to unmount everything"
+    tput sc
     declare -i i=3
-    printf2 "%d" $i
     while [[ $i -ne 0 ]]; do
+        echo2 "Now do your work, then press any key $i times to unmount everything"
         read -rsN1
         ((i--))
-        printf2 "\b%d" $i
+        tput rc; tput ed
     done
-    printf2 "\b"
     # - on termination - unmount in reverse order. - done in cleanup
 }
 
