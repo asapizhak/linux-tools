@@ -78,7 +78,7 @@ main() {
     getInputArgs opts ':fi:o:b:' "$@"
 
     declare -r input_file="${opts['i']:-}"
-    [[ -z $input_file ]] && failWithUsage
+    [[ -z $input_file ]] && coreFailExitWithUsage
     [[ ! -r $input_file ]] && coreFailExitWithUsage "Input object '$input_file' does not exist or has no read permission."
 
     declare -r output_file="${opts['o']:-${input_file}.sums.txt}"

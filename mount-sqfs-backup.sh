@@ -30,7 +30,7 @@ function validateInputArgs {
     declare -r image_file=$1
     declare -r dir_partition_mount=$2
 
-    [[ -z $image_file ]] && failWithUsage
+    [[ -z $image_file ]] && coreFailExitWithUsage
     if [[ ! -f $image_file ]] || [[ ! -r $image_file ]]; then
         coreFailExit "Image file '$image_file' does not exist or has no read permission."
     fi
