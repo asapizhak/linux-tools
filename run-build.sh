@@ -6,6 +6,12 @@ cd "$(dirname "${BASH_SOURCE[0]:-$0}")" || { echo >&2 "Failed to cd to script's 
 
 DIR='./build'
 
+if command -v realpath >/dev/null 2>&1; then
+    echo >&2 "Building into $(realpath "$PWD/$DIR")"
+else
+    echo >&2 "Building into $PWD/$DIR"
+fi
+
 rm -r "$DIR" && echo >&2 "Build: Removed previous directory $DIR"
 mkdir "$DIR"
 
