@@ -6,11 +6,13 @@ set -u
 set -e
 # set -x
 
-. lib/lib_fs.sh
-. lib/lib_input_args.sh
-. lib/lib_number_fn.sh
-. lib/lib_string_fn.sh
-. lib/lib_ui.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+. "$SCRIPT_DIR/lib/lib_fs.sh"
+. "$SCRIPT_DIR/lib/lib_input_args.sh"
+. "$SCRIPT_DIR/lib/lib_number_fn.sh"
+. "$SCRIPT_DIR/lib/lib_string_fn.sh"
+. "$SCRIPT_DIR/lib/lib_ui.sh"
 
 script_name=$(basename "$0")
 
