@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 
+set -e
+
 BATS_VERSION='1.9.0'
+
+PREV_DIR="$PWD"
+cd "$(dirname "${BASH_SOURCE[0]:-$0}")" || { echo >&2 "Failed to cd to script's directory"; return 1; }
 
 . .batsrc
 
@@ -27,3 +32,5 @@ if [[ -n "$file_to_run" ]]; then
 else
     docker run -it --rm -v "$BATS_WORKSPACE:/tests" -e BATS_WORKSPACE="$BATS_WORKSPACE" "bats/bats:$BATS_VERSION" -r /tests/tests
 fi
+
+cd "$PREV_DIR"
