@@ -6,6 +6,11 @@
 if [[ ${core__inited:-0} -ne 1 ]]; then
     declare -gir core__inited=1
 
+    # shellcheck disable=SC2034
+    declare -ri EXIT_CODE_NO_INPUT_ARGS=55
+    # shellcheck disable=SC2034
+    declare -ri EXIT_CODE_PREREQUISITE_FAILED=57
+
     if declare -p COLOR >/dev/null 2>&1; then
         echo >&2 "Variable 'COLOR' was already defined!"
         exit 1

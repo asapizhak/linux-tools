@@ -23,6 +23,9 @@ Usage:
     -i                       specifies sqfs file that will be mounted
     -d                       specifies the directory in which subdirs
                              will be created for image partitions
+Exit codes:
+    1                        Generic exit code
+    $EXIT_CODE_NO_INPUT_ARGS                       No input arguments provided
 "
 }
 
@@ -267,6 +270,8 @@ function checkAndMountPartitionToSubdir {
 main() {
     ensureCommands mktemp losetup realpath blkid blockdev cut mountpoint
 
+    inputExitIfNoArguments "$@"
+
     declare -A opts
     getInputArgs opts ':i:d:' "$@"
 
@@ -357,7 +362,6 @@ function cleanup {
     }
 
     cleanup_run=1
-    echo2 "Cleanup done (${1})"
 }
 trapWithSigname cleanup EXIT SIGINT SIGTERM
 

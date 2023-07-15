@@ -35,3 +35,12 @@ function getInputArgs {
         esac
     done
 }
+
+# Call this with single "$@" argument
+# 
+function inputExitIfNoArguments {
+
+    if [ "$#" -eq 0 ]; then
+        coreFailExitWithUsage '' $EXIT_CODE_NO_INPUT_ARGS; return $EXIT_CODE_NO_INPUT_ARGS
+    fi
+}

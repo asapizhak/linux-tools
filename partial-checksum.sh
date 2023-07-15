@@ -24,6 +24,10 @@ Usage:
     -o <file>                path to output file
     -f                       force overwriting of output file.
     -b <size>                set hashable block size (in MiBs)
+
+Exit codes:
+    1                        Generic exit code
+    $EXIT_CODE_NO_INPUT_ARGS                       No input arguments provided
 "
 }
 
@@ -73,6 +77,8 @@ sum_out_file=$(mktemp)
 #       and place a file into ./out/ e.g., or a separate option for output dir.
 main() {
     ensureCommands sudo tail awk stat blockdev dd mktemp
+
+    inputExitIfNoArguments "$@"
 
     declare -A opts
     getInputArgs opts ':fi:o:b:' "$@"
