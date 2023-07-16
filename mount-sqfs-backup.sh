@@ -269,7 +269,7 @@ function checkAndMountPartitionToSubdir {
 }
 
 main() {
-    ensureCommands mktemp losetup realpath blkid blockdev cut mountpoint
+    coreEnsureCommands mktemp losetup realpath blkid blockdev cut mountpoint
 
     inputExitIfNoArguments "$@"
 

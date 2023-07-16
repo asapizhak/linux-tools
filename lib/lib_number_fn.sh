@@ -3,7 +3,7 @@
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/lib_core.sh"
 
-ensureCommands bc
+coreEnsureCommands bc
 
 ###############################################################################
 # no external command calls here, only pure bash!

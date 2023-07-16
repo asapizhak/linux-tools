@@ -51,7 +51,7 @@ function coreFailExitWithUsage {
     coreFailExit "$@"
 }
 
-function commandsArePresent {
+function coreCommandsArePresent {
     declare suppress_echo=$1
 
     if [[ $suppress_echo =~ ^[0-9]+$ ]]; then
@@ -71,14 +71,14 @@ function commandsArePresent {
     return $ret
 }
 
-function ensureCommands {
-    if ! commandsArePresent "$@"; then coreFailExit "Missing required commands"; fi
+function coreEnsureCommands {
+    if ! coreCommandsArePresent "$@"; then coreFailExit "Missing required commands"; fi
 }
 
-function isNameNotTaken {
+function coreIsNameNotTaken {
     declare -r name=$1
 
-    if commandsArePresent 1 "$name" || type -t "$name" >/dev/null 2>&1; then
+    if coreCommandsArePresent 1 "$name" || type -t "$name" >/dev/null 2>&1; then
         return 1
     fi
     return 0
