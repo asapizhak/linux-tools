@@ -25,6 +25,7 @@ if [[ ${core__inited:-0} -ne 1 ]]; then
     COLOR['magenta']='\033[0;35m'
     COLOR['cyan']='\033[0;36m'
     COLOR['white']='\033[0;37m'
+    COLOR['gray']='\033[90m'
     readonly -A COLOR
 
     declare -ag core_color_names_stack=()
@@ -34,12 +35,12 @@ function coreFailExit {
     declare -r msg=${1:-""}
     declare -ri code=$(( "${2:-1}" ))
 
-    [ -n "$msg" ] && echo >&2 "Error: $msg"
+    [ -n "$msg" ] && printf >&2 "Error: ${COLOR['red']}%s${COLOR['default']}\n" "$msg"
 
     if [[ $code -ne 0 ]]; then
         exit $code
     else
-        echo >&2 "Failed to coreFailExit with success code 0"
+        printf >&2 "${COLOR['red']}Failed to coreFailExit with success code 0${COLOR['default']}"
         exit 1
     fi
 }

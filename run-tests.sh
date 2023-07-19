@@ -19,6 +19,7 @@ else
     bash ./run-build.sh
 fi
 
+echo >&2
 echo >&2 "Running tests inside docker container..."
 
 if ! docker inspect --type image "bats/bats:$BATS_VERSION" >/dev/null 2>&1; then

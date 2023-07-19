@@ -4,7 +4,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/lib_core.sh"
 . "$DIR/lib_core_stack.sh"
 
-ensureCommands read tput
+coreEnsureCommands read tput
 
 #
 #    array_ref
@@ -93,7 +93,9 @@ function uiListWithSelection {
 # Prints output color and adds it to stack
 #    color=default
 function uiPushColor {
-    declare -r color_name=${1:=default}
+    declare color_name=${1:=default}
+
+    if [[ ! -v COLOR["$color_name"] ]]; then color_name='default'; fi
 
     # shellcheck disable=SC2059
     printf "${COLOR[$color_name]}"
