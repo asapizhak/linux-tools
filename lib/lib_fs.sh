@@ -100,3 +100,12 @@ function fsIsEnoughFreeSpace {
     out_free_space_diff=$((free_space-expected_size))
 }
 
+#
+function fsIsLoopDevice {
+    coreEnsureCommands lsblk head
+
+    declare dev_type; dev_type="$(lsblk -no TYPE "$1")"
+    dev_type="$(head -n 1 <<< "$dev_type")"
+
+    [[ $dev_type = "loop" ]]
+}
