@@ -106,6 +106,22 @@ function setup() {
     assert_equal "$out" '1.5TiB'
 }
 
+@test "numDisplayAsSize negative bytes" {
+    declare out
+    numDisplayAsSize '-120' out
+    
+    assert_equal "$out" '-120B'
+}
+
+@test "numDisplayAsSize negative MB" {
+    declare out
+    numDisplayAsSize -536870912 out
+    
+    assert_equal "$out" '-512MiB'
+}
+
+
+
 @test "numPercentageFrac default precision" {
     declare out
     numPercentageFrac out 5.123456 10
