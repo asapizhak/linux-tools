@@ -247,73 +247,185 @@ main() {
     declare -r output_dir="${opts['o']}"
     declare -ri skip_luks="${opts['s']}"
 
-    if [[ $skip_luks -eq 1 ]]; then
-        F_COLOR=yellow echo2 "LUKS creation skip was requested. Writing sqfs to output dir."
-        pushd "$output_dir" >/dev/null
-    else
-    temp_dir="$(mktemp -dt -- "make-device-backup-XXX")"
-    chmod a+rx "$temp_dir"
-    pushd "$temp_dir" >/dev/null
-    fi
-
-    F_COLOR=gray echo2 "Current dir is $PWD"
-
     # Store input size
     getStorageObjectSize "$input_object" input_size
     numDisplayAsSizeEx $input_size input_size_display
     echo2 "Input size: $input_size_display"
 
     declare cur_date; cur_date="$(date +"%Y%m%d_%H%M")"
+    declare -r sqfs_basename="${friendly_device_name}_$cur_date.sqfs"
 
-    # input can be
-    #   - a block device to backup (input -> img -> sqfs -> luks)
-    #   - an sqfs file (input -> luks) # not implemented yet
-    declare temp_sqfs_filename="${friendly_device_name}_$cur_date.sqfs"
+    declare output_file
+    if [[ $skip_luks -ne 1 ]]; then
+        output_file="$output_dir/$sqfs_basename.luks"
+    else
+        output_file="$output_dir/$sqfs_basename"
+    fi
+    readonly output_file
+    [[ ! $output_file == /* ]] && coreFailExit "Output file is not absolute path ($output_file)"
+
+
+    # Fail if output file already exists
+    if [[ -e $output_file ]]; then coreFailExit "Cannot create $output_dir/$sqfs_basename - file already exist"; fi
+
+    temp_dir="$(mktemp -dt -- "make-device-backup-XXX")"
+    chmod a+rx "$temp_dir"
+    pushd "$temp_dir" >/dev/null
+
+    declare sqfs_file="$temp_dir/$sqfs_basename"
+    declare -i input_is_sqfs=0
+
+    ########################################
+    # Determine input type
     if [[ -b $input_object ]]; then
-        echo2 "Input is a block device. Dumping to SQFS..."
-        dumpToSqfs "$input_object" "$friendly_device_name" "$temp_sqfs_filename"
+        echo2 "Input is a block device."
     elif [[ -d $input_object ]]; then
-        echo2 "Input is a directory. Dumping to SQFS..."
-        dumpToSqfs "$input_object" "$friendly_device_name" "$temp_sqfs_filename"
-
+        echo2 "Input is a directory."
     elif [[ -f $input_object ]]; then
         declare file_type; file_type="$(file -bE "$input_object" | awk -F ',' '{print $1}')"
         printf2 "Input is a file or type"; F_COLOR=magenta echo2 " $file_type"
 
         # if input is already sqfs file, take it.
         if [[ $file_type == *"Squashfs filesystem"* ]]; then
-            temp_sqfs_filename="$input_object"
+            sqfs_file="$input_object"
+            input_is_sqfs=1
             echo2 "Already an sqfs file."
 
         # if input is already LUKS container, skip.
         elif [[ $file_type == *"LUKS encrypted file"* ]]; then
             coreFailExit "Already a LUKS container. Aborting."
-
-        else # input is a regular file, dump it to sqfs
-            dumpToSqfs "$input_object" "$friendly_device_name" "$temp_sqfs_filename"
         fi
     else coreFailExit "Unsupported input type."
     fi
+    readonly sqfs_file
+    readonly input_is_sqfs
+
+    [[ ! $sqfs_file == /* ]] && coreFailExit "Sqfs file is not absolute path ($sqfs_file)"
+
+    if [[ $input_is_sqfs -eq 0 ]]; then
+        echo2 "Dumping to SQFS..."
+        dumpToSqfs "$input_object" "$friendly_device_name" "$sqfs_file"
+    fi
+
+    declare -i sqfs_size
+    getStorageObjectSize "$sqfs_file" sqfs_size
+
+    echo2
+    if [[ $input_is_sqfs -eq 0 ]]; then printf2 "Created "; fi
+    showSqfsSizeSummary "$sqfs_file" $sqfs_size
+    sleep 1
 
     ########################################
     # At this moment we should have SQFS file ready.
-    declare -r sqfs_file="$PWD/$temp_sqfs_filename"
-
-    if [[ $skip_luks -eq 1 ]]; then
-        F_COLOR=green
-        echo2 "Done."
+    if [[ $skip_luks -eq 1 && $input_is_sqfs -eq 1 ]]; then
+        F_COLOR=yellow echo2 "LUKS creation skipped and input is an sqfs file"
+        F_COLOR=green echo2 "Doing nothing."
         exit 0
     fi
 
-    showSqfsSizeSummary "$sqfs_file"
+    if [[ $skip_luks -eq 1 ]]; then # sqfs is the output, copy it to output dir
+        echo2 "LUKS creation skipped"
+        echo2 "Copying sqfs file to the output dir..."
+
+        # another sanity check before writing there with dd
+        if [[ -e $output_file ]]; then
+            coreFailExit "$output_file: Output file already exists. This should be caught earlier!"
+        fi
+        dd if="$sqfs_file" of="$output_file" bs=1M
+        echo2 "Done."
+        printf2 "Output file is"; F_COLOR=magenta printf2 "$output_file"
+        exit 0
+    fi
 
     # Create LUKS container and copy sqfs file into it
     echo2
-    echo2 "Creating LUKS container"
-
     declare -i luks_overhead
     calculateLuksOverhead luks_overhead
 
+    # round size up so it's aligned by 512 bytes
+    declare -ri luks_file_size=$(( (sqfs_size + luks_overhead + 511) / 512 * 512 ))
+
+    # check free space for LUKS file
+    declare -i free_space_diff
+    fsIsEnoughFreeSpace "$output_dir" $luks_file_size free_space_diff
+
+    if [[ $free_space_diff -lt 0 ]]; then
+        declare space_needed=$((0-free_space_diff))
+        declare space_needed_display
+        numDisplayAsSizeEx $space_needed space_needed_display
+        F_COLOR='red' echo2 "Not enough free space to create LUKS container. Free $space_needed_display."
+        exit 1
+    fi
+
+    # make LUKS file
+    # another sanity check before writing there with dd
+    if [[ -e $output_file ]]; then
+        coreFailExit "$output_file: Output file already exists. This should be caught earlier!"
+    fi
+
+    # create (sparce) file
+    printf2 "Creating LUKS file"; F_COLOR=magenta printf2 " '$output_file'"; printf2 "... "
+    tput sc
+    echo2
+    uiPressEnterToContinue
+
+    dd if=/dev/zero of="$output_file" bs=512 count=1 seek="$(( (luks_file_size / 512) - 1))" 2>/dev/null
+    luks_file_created="$output_file"
+    tput rc; tput ed
+    F_COLOR='green' echo2 "Done."
+
+    printf2 "Mounting file to..."
+    luks_container_loop_dev=$(losetup -f --show "$output_file")
+    printf2 "\b\b\b ${COLOR['magenta']}$luks_container_loop_dev${COLOR['default']}..."
+    F_COLOR='green' echo2 " Done."
+
+    printf2 "Formatting LUKS partition..."
+    tput sc
+    echo2
+    cryptsetup -y luksFormat --type luks2 "$luks_container_loop_dev"
+    tput rc; tput ed
+    F_COLOR='green' echo2 'Done.'
+
+    printf2 "Opening LUKS partition..."
+    tput sc
+    echo2
+    cryptsetup open --type luks "$luks_container_loop_dev" "$friendly_device_name"
+    luks_mapped_device="$(cryptsetup status "$friendly_device_name" | head -n 1 | awk '{print $1}'; true)"
+    tput rc; tput ed
+    F_COLOR='green' printf2 "Done as ${COLOR['magenta']}$luks_mapped_device${COLOR['default']}\n"
+
+    # confirm partition has enough free space for sqfs
+    declare -ir partition_size=$(blockdev --getsize64 "/dev/mapper/$friendly_device_name")
+    declare -ir excessive_size=$((partition_size-sqfs_size))
+
+    if [[ $excessive_size -eq 0 ]]; then
+        echo2 "LUKS partition size is equal to sqfs file size."
+    elif [[ $excessive_size -gt 0 ]]; then
+        F_COLOR=yellow echo2 "LUKS partition size is greater than sqfs file size by $excessive_size bytes."
+        F_COLOR=yellow echo2 "This may be suboptimal."
+    else
+        echo2 "Error: LUKS partition is smaller than sqfs file for ${excessive_size//-/} bytes."
+        coreFailExit "       This is probably due to overhead calculation error."
+    fi
+
+    # copying sqfs filesystem to LUKS partition
+    printf2 "Copying sqfs filesystem to LUKS partition..."
+    tput sc
+    echo2
+    dd if="$sqfs_file" of="$luks_mapped_device" bs=1M status=progress
+    tput rc; tput ed
+    F_COLOR=green printf2 "Done."
+
+    echo2
+    echo2 "Verifying sqfs and LUKS checksums (they should match)"
+    sha1sum -b "$sqfs_file"
+    sha1sum -b "$luks_mapped_device"
+
+    printf2 "LUKS backup saved as "; F_COLOR=magenta echo2 "$output_file"
+    backup_succeeded=1
+
+    uiPressEnterToContinue
+    exit 0
 }
 
 declare -i cleanup_run=0
@@ -323,12 +435,31 @@ function cleanup {
 
     tput cnorm || true # reset cursor to normal
 
+    if [[ -n ${luks_mapped_device:-} ]]; then
+        printf2 "Removing LUKS mapping $luks_mapped_device..."
+        cryptsetup close "$luks_mapped_device"
+        F_COLOR=cyan echo2 " Done."
+    fi
+    if [[ -n ${luks_container_loop_dev:-} ]]; then
+        printf2 "Unmounting LUKS file from $luks_container_loop_dev..."
+        losetup -d "$luks_container_loop_dev"
+        F_COLOR=cyan echo2 " Done."
+    fi
+
+    if [[ -n ${luks_file_created:-} && ${backup_succeeded:-0} -eq 0 ]]; then
+        printf2 "Removing LUKS file $luks_file_created..."
+        rm "$luks_file_created"
+        F_COLOR=cyan echo2 " Done."
+    fi
+
     if [[ ${temp_dir:-} == /tmp/* ]]; then
         printf2 "Removing temp dir..."
         rm -r "$temp_dir" && echo2 " Removed.";
     fi
 
-    F_COLOR=cyan echo2 "Done."
+    calculateLuksOverheadCleanup
+
+    F_COLOR=cyan echo2 "│ Done."
 }
 trapWithSigname cleanup EXIT SIGINT SIGTERM
 
