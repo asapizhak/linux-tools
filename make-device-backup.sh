@@ -205,19 +205,15 @@ function dumpToSqfs {
 
 #
 #    sqfs_file_path
-#    input_size
+#    sqfs_size
 function showSqfsSizeSummary {
     declare -r _sqfs_file_path="$1"
+    declare -ri _sqfs_size="$2"
 
-    declare -i sqfs_size
-    getStorageObjectSize "$_sqfs_file_path" sqfs_size
+    declare sqfs_size_display; numDisplayAsSize $_sqfs_size sqfs_size_display
+    declare _input_size_percent; numPercentageFrac _input_size_percent $_sqfs_size $input_size
+    declare reduction; numDivFrac $input_size $_sqfs_size reduction 2
 
-    declare sqfs_size_display; numDisplayAsSize $sqfs_size sqfs_size_display
-    declare _input_size_percent; numPercentageFrac _input_size_percent $sqfs_size $input_size
-    declare reduction; numDivFrac $input_size $sqfs_size reduction 2
-
-    echo2
-    printf2 "Created "
     F_COLOR=magenta printf2 "'%s'" "$_sqfs_file_path"
     printf2 " of size "
     F_COLOR=magenta printf2 "%s" "$sqfs_size_display"
