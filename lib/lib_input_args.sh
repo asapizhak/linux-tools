@@ -13,6 +13,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 #   declare -A opts
 #   getInputArgs ':o:i:f' opts "$@"
 #       optstring should start with ":", also if parameter needs argument, it should be followed by ":"
+#   for parameters expecting no value, sets 1 as value if they are present.
 function getInputArgs {
     declare -n f_out=$1
     declare -r argspec="$2"
@@ -30,7 +31,7 @@ function getInputArgs {
             ;;
         *)
             # shellcheck disable=SC2034
-            f_out["$opt"]=${OPTARG:-""}
+            f_out["$opt"]=${OPTARG:-1}
             ;;
         esac
     done
