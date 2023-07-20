@@ -145,11 +145,11 @@ declare input_size_display
 #
 #    _input_object
 #    _img_name_wo_ext
-#    _sqfs_basename
+#    _sqfs_file
 function dumpToSqfs {
     declare -r _input_object="$1"
     declare -r _img_name_wo_ext="$2"
-    declare -r _sqfs_basename="$3"
+    declare -r _sqfs_file="$3"
 
     # check free space
     # calculate free space using size of original input.
@@ -168,28 +168,39 @@ function dumpToSqfs {
     declare -i is_ver_lessthan_4p5=0
     pkgAreEqualVersionStrings is_ver_lessthan_4p5 "$mksquashfs_version" 'lt' '4.5'
 
-    echo2 "Will create $_sqfs_basename"
-    sleep 1
+    echo2 "Will create $_sqfs_file"
+    uiPressEnterToContinue
 
-    # take block device and read it into .img file in sqfs container (temp file), with default zstd compression
+    # shellcheck disable=SC2034
     declare -r img_basename="${_img_name_wo_ext}.img"
-    declare -r common_args="-all-root -comp zstd -Xcompression-level 16"
+
+    declare _source=
+    declare -a _rootdir_definition=()
+    declare -a _pseudofile=("-p" "$img_basename f 444 root root dd 2>/dev/null if=$_input_object bs=1M")
+
+    if [[ -d $_input_object ]]; then
+        _source="$_input_object"
+        _pseudofile=()
+    fi
 
     if [[ $is_ver_lessthan_4p5 -eq 1 ]]; then
         F_COLOR=gray echo2 "Found mksquashfs version $mksquashfs_version (older than 4.5)"
-        declare _rootdir="sqfsroot"
-        mkdir "$_rootdir"
-        # shellcheck disable=SC2086
-        mksquashfs "$_rootdir" "$_sqfs_basename" $common_args \
-            -p "$img_basename f 444 root root dd 2>/dev/null if=$_input_object bs=1M"
-        rm -r "$_rootdir"
-    else
+        [[ -z $_source ]] && {
+            _source="sqfsroot"
+            mkdir "$_source"
+        }
+    else # 4.5+
         F_COLOR=gray echo2 "Found mksquashfs version $mksquashfs_version"
-        # shellcheck disable=SC2086
-        mksquashfs - "$_sqfs_basename" $common_args \
-            -p '/ d 644 0 0' \
-            -p "$img_basename f 444 root root dd if=$_input_object bs=1M"
+        [[ -z $_source ]] && {
+            _source='-'
+        }
+        _rootdir_definition=("-p" "d 644 0 0")
     fi
+
+    declare -a common_opts=('-comp' 'zstd' '-all-root' '-Xcompression-level' '16')
+
+    declare -a args=("$_source" "$_sqfs_file" "${common_opts[@]}" "${_rootdir_definition[@]}" "${_pseudofile[@]}")
+    mksquashfs "${args[@]}"
 }
 
 #
