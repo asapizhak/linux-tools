@@ -46,7 +46,13 @@ function normalizeValidateInputArgs {
     if [[ ! -r ${_opts['i']} ]]; then coreFailExit "Input object '${_opts['i']}' has no read access"; fi
 
     if [[ ! -f ${_opts['i']} && ! -b ${_opts['i']} && ! -d ${_opts['i']} ]]; then
-        coreFailExit "Only block devices, dirs and files are supported as input. '${_opts['i']}' is neither."; fi
+        coreFailExit "Only block devices, dirs and files are supported as input. '${_opts['i']}' is neither."
+    fi
+
+    declare real_input_path; real_input_path="$(realpath "${_opts['i']}")"
+    if [[ ! $real_input_path == "${_opts['i']}" ]]; then
+        _opts['i']="$real_input_path"
+    fi
 
     # friendly name
     if [[ -z ${_opts['n']:-} ]]; then coreFailExitWithUsage "Friendly name not set"; fi
