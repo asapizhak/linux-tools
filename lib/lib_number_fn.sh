@@ -41,19 +41,37 @@ function numCompFrac {
 #    size_bytes
 #    out_size
 function numDisplayAsSize {
+    coreEnsureCommands sed
     declare size=$1
     declare -n out_size=$2
 
-    if numCompFrac "$size" '<' 1024; then { printf -v ${!#} "%.3gB" "$size"; return 0; }; fi
-    numDivFrac "$size" 1024 size
-    if numCompFrac "$size" '<' 1024; then { LC_NUMERIC=C printf -v ${!#} "%.3gKiB" "$size"; return 0; }; fi
-    numDivFrac "$size" 1024 size
-    if numCompFrac "$size" '<' 1024; then { LC_NUMERIC=C printf -v ${!#} "%.3gMiB" "$size"; return 0; }; fi
-    numDivFrac "$size" 1024 size
-    if numCompFrac "$size" '<' 1024; then { LC_NUMERIC=C printf -v ${!#} "%.3gGiB" "$size"; return 0; }; fi
-    numDivFrac "$size" 1024 size
-    # shellcheck disable=SC2034
-    LC_NUMERIC=C printf -v out_size "%.3gTiB" "$size"
+    declare size_sign=''
+    if (( size < 0 )); then size=$(( size * -1 )); size_sign='-'; fi
+
+    declare -a suffixes=("B" "KiB" "MiB" "GiB" "TiB")
+    declare suffix=
+
+    for s in "${suffixes[@]}"; do
+        if numCompFrac "$size" '>' 1024; then
+            numDivFrac "$size" 1024 size 3
+        else
+            LC_NUMERIC=C printf -v out_size "%f" "$size"
+            suffix="$s"
+            break
+        fi
+    done
+
+    if [[ $size_sign == '-' ]]; then out_size="-$out_size"; fi
+    # remove trailing zeroes if there's fractional separator
+    out_size="$(sed '/\./ s/\.\{0,1\}0\{1,\}$//' <<< "$out_size")$suffix"
+}
+
+function numDisplayAsSizeEx {
+    declare size=$1
+    declare -n out_size_val=$2
+
+    numDisplayAsSize "$size" out_size_val
+    printf -v out_size_val "%s (%s bytes)" "$out_size_val" "$size"
 }
 
 # numPercentageFrac out_var "what" "of_what" "precision?"=2
