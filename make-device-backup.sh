@@ -66,10 +66,75 @@ function normalizeValidateInputArgs {
 
     if [[ ! -d ${_opts['o']:-} ]]; then coreFailExitWithUsage "-o should be an existing directory"; fi
 
+    # skip LUKS
+    _opts['s']="${_opts['s']:-0}"
+
     readonly -A _opts
 }
 
+declare -A luks_overhead_metadata=()
+
+#
+#    out_overhead_size (in bytes)
+function calculateLuksOverhead {
+    declare -n out_overhead=$1
+
+    echo2 "Calculating LUKS overhead..."
+
+    declare -ir test_file_size_blocks=$((100*1024*1024/512)) # 100Mb in 512 blocks
+    uiPushColor2 gray
+
+    luks_overhead_metadata['test_file']=$(mktemp)
+    dd if=/dev/zero of="${luks_overhead_metadata['test_file']}" bs=512 count=1 seek=$((test_file_size_blocks-1)) 2>/dev/null
+    printf2 "+Temp-file."
+
+    luks_overhead_metadata['file_dev']=$(losetup -f --show "${luks_overhead_metadata['test_file']}")
+    printf2 " +Mounted."
+
+    declare -r temp_pass="123"
+    printf2 " LuksFormat, this may take some time.."
+    cryptsetup luksFormat --type luks2 --key-file=- "${luks_overhead_metadata['file_dev']}" <<< "$temp_pass"
+    printf2 " Done."
+
+    printf2 " +Mapping.."
+    luks_overhead_metadata['part_name']="overhead_test"
+    cryptsetup open --type luks \
+        --key-file=- "${luks_overhead_metadata['file_dev']}" "${luks_overhead_metadata['part_name']}" <<< "$temp_pass"
+
+    declare -ir size_dev=$(blockdev --getsz "${luks_overhead_metadata['file_dev']}")
+    declare -ir size_mapped=$(blockdev --getsz "/dev/mapper/${luks_overhead_metadata['part_name']}")
+
+    declare -ri overhead="$(( size_dev - size_mapped ))"
+    # shellcheck disable=SC2034
+    out_overhead=$((overhead * 512))
+
+    echo2 " Done."
+    uiPopColor2
+}
+
+# shellcheck disable=SC2317
+function calculateLuksOverheadCleanup {
+    uiPushColor2 gray
+    printf2 "Calculate LUKS overhead cleanup:"
+    if [[ -n "${luks_overhead_metadata['part_name']:-}" ]]; then
+        cryptsetup close "${luks_overhead_metadata['part_name']}"; luks_overhead_metadata['part_name']=''
+        printf2 " -Mapping."; fi
+    if [[ -n "${luks_overhead_metadata['file_dev']:-}" ]]; then
+        losetup -d "${luks_overhead_metadata['file_dev']}"; luks_overhead_metadata['file_dev']=''
+        printf2 " -Mount"; fi
+    if [[ -n "${luks_overhead_metadata['test_file']:-}" ]]; then
+        rm "${luks_overhead_metadata['test_file']}"; luks_overhead_metadata['test_file']=''
+        printf2 " -Temp-file"; fi
+
+    echo2 " Done."
+    uiPopColor2
+
+    return 0
+}
+
 declare temp_dir
+declare -i input_size
+declare input_size_display
 
 #
 #    _input_object
@@ -81,11 +146,6 @@ function dumpToSqfs {
     declare -r _sqfs_basename="$3"
 
     # check free space
-    declare -i input_size; declare input_size_display
-    getStorageObjectSize "$_input_object" input_size
-    numDisplayAsSizeEx $input_size input_size_display
-    echo2 "Input size: $input_size_display"
-
     # calculate free space using size of original input.
     # Sqfs file would usually be smaller but we don't know beforehand.
     declare -i free_space_diff
@@ -110,7 +170,7 @@ function dumpToSqfs {
     declare -r common_args="-all-root -comp zstd -Xcompression-level 16"
 
     if [[ $is_ver_lessthan_4p5 -eq 1 ]]; then
-        echo2 "Found mksquashfs version $mksquashfs_version (older than 4.5)"
+        F_COLOR=gray echo2 "Found mksquashfs version $mksquashfs_version (older than 4.5)"
         declare _rootdir="sqfsroot"
         mkdir "$_rootdir"
         # shellcheck disable=SC2086
@@ -118,27 +178,34 @@ function dumpToSqfs {
             -p "$img_basename f 444 root root dd 2>/dev/null if=$_input_object bs=1M"
         rm -r "$_rootdir"
     else
-        echo2 "Found mksquashfs version $mksquashfs_version"
+        F_COLOR=gray echo2 "Found mksquashfs version $mksquashfs_version"
         # shellcheck disable=SC2086
         mksquashfs - "$_sqfs_basename" $common_args \
             -p '/ d 644 0 0' \
             -p "$img_basename f 444 root root dd if=$_input_object bs=1M"
     fi
+}
+
+#
+#    sqfs_file_path
+#    input_size
+function showSqfsSizeSummary {
+    declare -r _sqfs_file_path="$1"
 
     declare -i sqfs_size
-    getStorageObjectSize "$_sqfs_basename" sqfs_size
+    getStorageObjectSize "$_sqfs_file_path" sqfs_size
 
     declare sqfs_size_display; numDisplayAsSize $sqfs_size sqfs_size_display
-    declare _size_percent; numPercentageFrac _size_percent $sqfs_size $input_size
+    declare _input_size_percent; numPercentageFrac _input_size_percent $sqfs_size $input_size
     declare reduction; numDivFrac $input_size $sqfs_size reduction 2
 
     echo2
     printf2 "Created "
-    F_COLOR=magenta printf2 "'%s'" "$_sqfs_basename"
+    F_COLOR=magenta printf2 "'%s'" "$_sqfs_file_path"
     printf2 " of size "
     F_COLOR=magenta printf2 "%s" "$sqfs_size_display"
     printf2 " ("
-    F_COLOR=magenta printf2 "%s%%" "$_size_percent"
+    F_COLOR=magenta printf2 "%s%%" "$_input_size_percent"
     printf2 " of input, "
     F_COLOR=magenta printf2 "%sx" "$reduction"
     echo2 " reduction)"
@@ -157,7 +224,7 @@ main() {
 
     normalizeValidateInputArgs opts
 
-    declare -r input_object="${opts['i']:-}"
+    declare -r input_object="${opts['i']}"
     declare -r friendly_device_name="${opts['n']}"
     declare -r output_dir="${opts['o']}"
     declare -ri skip_luks="${opts['s']}"
@@ -172,6 +239,11 @@ main() {
     fi
 
     F_COLOR=gray echo2 "Current dir is $PWD"
+
+    # Store input size
+    getStorageObjectSize "$input_object" input_size
+    numDisplayAsSizeEx $input_size input_size_display
+    echo2 "Input size: $input_size_display"
 
     declare cur_date; cur_date="$(date +"%Y%m%d_%H%M")"
 
@@ -207,13 +279,22 @@ main() {
 
     ########################################
     # At this moment we should have SQFS file ready.
-    declare -r sqfs_filename="$PWD/$temp_sqfs_filename"
+    declare -r sqfs_file="$PWD/$temp_sqfs_filename"
 
     if [[ $skip_luks -eq 1 ]]; then
         F_COLOR=green
         echo2 "Done."
         exit 0
     fi
+
+    showSqfsSizeSummary "$sqfs_file"
+
+    # Create LUKS container and copy sqfs file into it
+    echo2
+    echo2 "Creating LUKS container"
+
+    declare -i luks_overhead
+    calculateLuksOverhead luks_overhead
 
 }
 
