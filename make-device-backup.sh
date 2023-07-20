@@ -92,7 +92,7 @@ function dumpToSqfs {
     fsIsEnoughFreeSpace "$PWD" $input_size free_space_diff
 
     if [[ $free_space_diff -le 0 ]]; then
-        F_COLOR='yellow' echo2 "WARN: Low free space! Operation will possible fail."
+        F_COLOR='yellow' echo2 "WARN: Low free space! Operation will likely fail."
         F_COLOR='yellow' echo2 "      Continue at your own risk."; fi
 
     # different mksquashfs versions allow different syntax
@@ -102,11 +102,11 @@ function dumpToSqfs {
     declare -i is_ver_lessthan_4p5=0
     pkgAreEqualVersionStrings is_ver_lessthan_4p5 "$mksquashfs_version" 'lt' '4.5'
 
-    declare -r img_basename="${_img_name_wo_ext}.img"
     echo2 "Will create $_sqfs_basename"
     sleep 1
 
     # take block device and read it into .img file in sqfs container (temp file), with default zstd compression
+    declare -r img_basename="${_img_name_wo_ext}.img"
     declare -r common_args="-all-root -comp zstd -Xcompression-level 16"
 
     if [[ $is_ver_lessthan_4p5 -eq 1 ]]; then
@@ -153,18 +153,25 @@ main() {
     inputExitIfNoArguments "$@"
 
     declare -A opts
-    getInputArgs opts ':i:o:n:' "$@"
+    getInputArgs opts ':i:o:n:s' "$@"
 
     normalizeValidateInputArgs opts
 
     declare -r input_object="${opts['i']:-}"
     declare -r friendly_device_name="${opts['n']}"
-    declare output_luks_file="${opts['o']}"
+    declare -r output_dir="${opts['o']}"
+    declare -ri skip_luks="${opts['s']}"
 
+    if [[ $skip_luks -eq 1 ]]; then
+        F_COLOR=yellow echo2 "LUKS creation skip was requested. Writing sqfs to output dir."
+        pushd "$output_dir" >/dev/null
+    else
     temp_dir="$(mktemp -dt -- "make-device-backup-XXX")"
     chmod a+rx "$temp_dir"
     pushd "$temp_dir" >/dev/null
-    F_COLOR=gray echo2 "Temp dir is $temp_dir"
+    fi
+
+    F_COLOR=gray echo2 "Current dir is $PWD"
 
     declare cur_date; cur_date="$(date +"%Y%m%d_%H%M")"
 
@@ -201,6 +208,12 @@ main() {
     ########################################
     # At this moment we should have SQFS file ready.
     declare -r sqfs_filename="$PWD/$temp_sqfs_filename"
+
+    if [[ $skip_luks -eq 1 ]]; then
+        F_COLOR=green
+        echo2 "Done."
+        exit 0
+    fi
 
 }
 
