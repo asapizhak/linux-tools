@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 
+if [[ ${lib_num__inited:-0} -ne 0 ]]; then
+    declare -gir lib_num__inited=1
+    return 0
+fi
+
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/lib_core.sh"
 
 coreEnsureCommands bc
+
 
 ###############################################################################
 # no external command calls here, only pure bash!
@@ -74,14 +80,17 @@ function numDisplayAsSizeEx {
     printf -v out_size_val "%s (%s bytes)" "$out_size_val" "$size"
 }
 
-# numPercentageFrac out_var "what" "of_what" "precision?"=2
+# numPercentageFrac
+#    out_var
+#    "what"
+#    "of_what"
+#    "precision?"=2
 function numPercentageFrac {
     declare -n f_out=$1
     declare -r what=$2
     declare -r of_what=$3
     declare -r precision=${4:-2}
 
-    declare -r percent=$(echo "scale=$precision; $what * 100 / $of_what" | bc)
     # shellcheck disable=SC2034
-    LC_NUMERIC=C printf -v f_out "%g" "$percent"
+    LC_NUMERIC=C printf -v f_out "%g" "$(echo "scale=$precision; $what * 100 / $of_what" | bc)"
 }
