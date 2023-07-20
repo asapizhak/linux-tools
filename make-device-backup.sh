@@ -19,7 +19,15 @@ function usage {
     # shellcheck disable=SC2317
     echo2 "\
 Usage:
-    $script_name -i <input_object> -o <luks_file_path> -n <friendly_device_name>
+    $script_name -i <input_object> -n <friendly_device_name> -o <output_file_dir>
+
+    -i                        Input file-, dir-, device path
+    -n                        Friendly name of the backup. Sqfs and .img will
+                              have this name. A-Za-z and -_ allowed.
+    -o                        Output file will be created there. Should exist.
+                              Will be PWD, if omitted.
+    -s                        Sqfs only - skips LUKS file creation, SQFS will be
+                              the output file then.
 
 Exit codes:
     1                        Generic exit code
@@ -51,15 +59,12 @@ function normalizeValidateInputArgs {
 
     if [[ -z ${_opts['n']} ]]; then coreFailExitWithUsage "After stripping illegal chars - friendly name is empty"; fi
 
-    # output file
-    if [[ -z ${_opts['o']:-} ]]; then _opts['o']="$PWD/${_opts['n']}"; fi
+    # output dir
+    # default to working dir, if not supplied
+    if [[ -z ${_opts['o']:-} ]]; then _opts['o']="$PWD"; fi
     _opts['o']="$(realpath "${_opts['o']}")"
-    if [[ ${_opts['o']} != *.img.luks ]]; then _opts['o']="${_opts['o']}.img.luks"; fi
 
-    if [[ -e ${_opts['o']} ]]; then coreFailExit "Output file already exists (${_opts['o']})"; fi
-    if [[ ! -e "$(dirname "${_opts['o']}")" ]]; then
-        coreFailExit "Output file directory $(dirname "${_opts['o']}") does not exist"
-    fi
+    if [[ ! -d ${_opts['o']:-} ]]; then coreFailExitWithUsage "-o should be an existing directory"; fi
 
     readonly -A _opts
 }
