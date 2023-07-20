@@ -224,6 +224,11 @@ function showSqfsSizeSummary {
     echo2 " reduction)"
 }
 
+declare luks_file_created
+declare luks_container_loop_dev
+declare luks_mapped_device
+declare -i backup_succeeded
+
 ########################################
 # main
 ########################################
