@@ -3,8 +3,6 @@
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/lib_core.sh"
 
-coreEnsureCommands stat blockdev
-
 ###############################################################################
 # less external command calls here, more pure bash!
 # function prefix: fs
@@ -15,13 +13,14 @@ coreEnsureCommands stat blockdev
 #    object
 #    out_obj_size
 function getStorageObjectSize {
+    coreEnsureCommands du blockdev
     declare -r object="$1"
     declare -n out_obj_size=$2
 
     [[ ! -r "$object" ]] && coreFailExit "Object '$object' is unreadable."
 
-    if [[ -f "$object" ]]; then
-        size=$(stat -c "%s" "$object")
+    if [[ -f "$object" || -d "$object" ]]; then
+        size="$(du --bytes --summarize "$object" | awk '{print $1}')"
     elif [[ -b "$object" ]]; then
         size=$(blockdev --getsize64 "$object")
     else
@@ -35,6 +34,7 @@ function getStorageObjectSize {
 #
 #    directory
 function fsDirectoryHasContent {
+    coreEnsureCommands find
     declare -r directory=$1
 
     if [[ -n "$(find "$directory" -mindepth 1 -print -quit)" ]]; then
