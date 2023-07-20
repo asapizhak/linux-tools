@@ -11,14 +11,22 @@ coreEnsureCommands bc
 # Functions that work with numbers here.
 ###############################################################################
 
+#
+#    a
+#    b
+#    out_result
+#    precision=6
 function numDivFrac {
+    coreEnsureCommands sed
     declare -r a=$1
     declare -r b=$2
     declare -n f_out=$3
+    declare -r precision=${4:-6}
 
-    declare -r result=$(echo "scale=6; $a / $b" | bc)
     # shellcheck disable=SC2034
-    LC_NUMERIC=C printf -v f_out "%f" "$result"
+    LC_NUMERIC=C printf -v f_out "%f" "$(echo "scale=$precision; $a / $b" | bc)"
+    # remove trailing zeroes if there's fractional separator
+    f_out="$(sed '/\./ s/\.\{0,1\}0\{1,\}$//' <<< "$f_out")" # https://stackoverflow.com/a/30048933
 }
 
 function numCompFrac {
