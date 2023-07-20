@@ -59,3 +59,44 @@ function fsJoinPaths {
         out_combined="${out_combined%/}/$path"
     done
 }
+
+#
+#    file
+#    out_usage[] ('device', 'free')
+function fsGetDiskSpaceUsage {
+    coreEnsureCommands df awk
+    declare -r file="$1"
+    declare -n out_usage=$2
+
+    declare raw
+    raw="$(df -PB 1 --sync "$file")"
+
+    out_usage['device']="$(awk 'NR==2 {print $1}' <<< "$raw")"
+    # shellcheck disable=SC2034
+    out_usage['free']="$(awk 'NR==2 {print $4}' <<< "$raw")"
+}
+
+#
+#    path  -  path where to look for free space
+#    expected_size in bytes
+#    out_free_space_diff - if this is 0 or positive, free space is enough by absolute value.
+#                          If it's negative then not enough free space by the amount of absolute value.
+function fsIsEnoughFreeSpace {
+    declare -r path=$1
+    declare -r expected_size=$2
+    declare -n out_free_space_diff=$3
+
+    if [[ $expected_size -lt 0 ]]; then
+        echo2 "Expected size wrong, got $expected_size"
+        return 1
+    fi
+
+    declare -A usage=()
+    fsGetDiskSpaceUsage "$path" usage
+
+    declare -ri free_space="${usage['free']}"
+
+    # shellcheck disable=SC2034
+    out_free_space_diff=$((free_space-expected_size))
+}
+

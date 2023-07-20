@@ -66,6 +66,79 @@ function normalizeValidateInputArgs {
 
 declare temp_dir
 
+#
+#    _input_object
+#    _img_name_wo_ext
+#    _sqfs_basename
+function dumpToSqfs {
+    declare -r _input_object="$1"
+    declare -r _img_name_wo_ext="$2"
+    declare -r _sqfs_basename="$3"
+
+    # check free space
+    declare -i input_size; declare input_size_display
+    getStorageObjectSize "$_input_object" input_size
+    numDisplayAsSizeEx $input_size input_size_display
+    echo2 "Input size: $input_size_display"
+
+    # calculate free space using size of original input.
+    # Sqfs file would usually be smaller but we don't know beforehand.
+    declare -i free_space_diff
+    fsIsEnoughFreeSpace "$PWD" $input_size free_space_diff
+
+    if [[ $free_space_diff -le 0 ]]; then
+        F_COLOR='yellow' echo2 "WARN: Low free space! Operation will possible fail."
+        F_COLOR='yellow' echo2 "      Continue at your own risk."; fi
+
+    # different mksquashfs versions allow different syntax
+    declare mksquashfs_version
+    mksquashfs_version="$(mksquashfs -version | grep 'mksquashfs version' | awk '{print $3}' )"
+
+    declare -i is_ver_lessthan_4p5=0
+    pkgAreEqualVersionStrings is_ver_lessthan_4p5 "$mksquashfs_version" 'lt' '4.5'
+
+    declare -r img_basename="${_img_name_wo_ext}.img"
+    echo2 "Will create $_sqfs_basename"
+    sleep 1
+
+    # take block device and read it into .img file in sqfs container (temp file), with default zstd compression
+    declare -r common_args="-all-root -comp zstd -Xcompression-level 16"
+
+    if [[ $is_ver_lessthan_4p5 -eq 1 ]]; then
+        echo2 "Found mksquashfs version $mksquashfs_version (older than 4.5)"
+        declare _rootdir="sqfsroot"
+        mkdir "$_rootdir"
+        # shellcheck disable=SC2086
+        mksquashfs "$_rootdir" "$_sqfs_basename" $common_args \
+            -p "$img_basename f 444 root root dd 2>/dev/null if=$_input_object bs=1M"
+        rm -r "$_rootdir"
+    else
+        echo2 "Found mksquashfs version $mksquashfs_version"
+        # shellcheck disable=SC2086
+        mksquashfs - "$_sqfs_basename" $common_args \
+            -p '/ d 644 0 0' \
+            -p "$img_basename f 444 root root dd if=$_input_object bs=1M"
+    fi
+
+    declare -i sqfs_size
+    getStorageObjectSize "$_sqfs_basename" sqfs_size
+
+    declare sqfs_size_display; numDisplayAsSize $sqfs_size sqfs_size_display
+    declare _size_percent; numPercentageFrac _size_percent $sqfs_size $input_size
+    declare reduction; numDivFrac $input_size $sqfs_size reduction 2
+
+    echo2
+    printf2 "Created "
+    F_COLOR=magenta printf2 "'%s'" "$_sqfs_basename"
+    printf2 " of size "
+    F_COLOR=magenta printf2 "%s" "$sqfs_size_display"
+    printf2 " ("
+    F_COLOR=magenta printf2 "%s%%" "$_size_percent"
+    printf2 " of input, "
+    F_COLOR=magenta printf2 "%sx" "$reduction"
+    echo2 " reduction)"
+}
+
 ########################################
 # main
 ########################################
@@ -86,6 +159,44 @@ main() {
     temp_dir="$(mktemp -dt -- "make-device-backup-XXX")"
     chmod a+rx "$temp_dir"
     pushd "$temp_dir" >/dev/null
+    F_COLOR=gray echo2 "Temp dir is $temp_dir"
+
+    declare cur_date; cur_date="$(date +"%Y%m%d_%H%M")"
+
+    # input can be
+    #   - a block device to backup (input -> img -> sqfs -> luks)
+    #   - an sqfs file (input -> luks) # not implemented yet
+    declare temp_sqfs_filename="${friendly_device_name}_$cur_date.sqfs"
+    if [[ -b $input_object ]]; then
+        echo2 "Input is a block device. Dumping to SQFS..."
+        dumpToSqfs "$input_object" "$friendly_device_name" "$temp_sqfs_filename"
+    elif [[ -d $input_object ]]; then
+        echo2 "Input is a directory. Dumping to SQFS..."
+        dumpToSqfs "$input_object" "$friendly_device_name" "$temp_sqfs_filename"
+
+    elif [[ -f $input_object ]]; then
+        declare file_type; file_type="$(file -bE "$input_object" | awk -F ',' '{print $1}')"
+        printf2 "Input is a file or type"; F_COLOR=magenta echo2 " $file_type"
+
+        # if input is already sqfs file, take it.
+        if [[ $file_type == *"Squashfs filesystem"* ]]; then
+            temp_sqfs_filename="$input_object"
+            echo2 "Already an sqfs file."
+
+        # if input is already LUKS container, skip.
+        elif [[ $file_type == *"LUKS encrypted file"* ]]; then
+            coreFailExit "Already a LUKS container. Aborting."
+
+        else # input is a regular file, dump it to sqfs
+            dumpToSqfs "$input_object" "$friendly_device_name" "$temp_sqfs_filename"
+        fi
+    else coreFailExit "Unsupported input type."
+    fi
+
+    ########################################
+    # At this moment we should have SQFS file ready.
+    declare -r sqfs_filename="$PWD/$temp_sqfs_filename"
+
 }
 
 declare -i cleanup_run=0
