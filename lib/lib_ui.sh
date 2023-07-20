@@ -134,3 +134,7 @@ function uiResetColor2 {
     # shellcheck disable=SC2034
     ui_colors_stack=()
 }
+
+function uiPressEnterToContinue {
+    read -rp "Press ENTER to continue"
+}

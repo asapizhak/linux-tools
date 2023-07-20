@@ -149,6 +149,7 @@ function trapWithSigname { # https://stackoverflow.com/a/2183063
         declare -r f=$1
         shift
 
+        echo2
         F_COLOR='cyan' echo2 "┌ Running cleanup ($1)..."
         if "$f" "$@"; then
             F_COLOR='cyan' echo2 "└ Cleanup finished."
