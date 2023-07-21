@@ -11,6 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/lib/lib_input_args.sh"
 . "$SCRIPT_DIR/lib/lib_packages.sh"
 . "$SCRIPT_DIR/lib/lib_number_fn.sh"
+. "$SCRIPT_DIR/lib/lib_string_fn.sh"
 . "$SCRIPT_DIR/lib/lib_ui.sh"
 
 script_name=$(basename "$0")
@@ -19,7 +20,7 @@ function usage {
     # shellcheck disable=SC2317
     echo2 "\
 Usage:
-    $script_name -i <input_object> -n <friendly_device_name> -o <output_file_dir>
+    $script_name -i <input_object> -n <friendly_backup_name> -o <output_file_dir>
 
     -i                        Input file-, dir-, device path
     -n                        Friendly name of the backup. Sqfs and .img will
@@ -28,6 +29,10 @@ Usage:
                               Will be PWD, if omitted.
     -s                        Sqfs only - skips LUKS file creation, SQFS will be
                               the output file then.
+    -p <amount>               Adds <amount> of recovery data, in integer
+                              percents. To skip recovery generation, use -p 0
+                              If not supplied, 10 percent of recovery data
+                              will be added.
 
 Exit codes:
     1                        Generic exit code
@@ -74,6 +79,10 @@ function normalizeValidateInputArgs {
 
     # skip LUKS
     _opts['s']="${_opts['s']:-0}"
+
+    # parity amount
+    _opts['p']="${_opts['p']:-10}"
+    if ! isPositiveIntString "${_opts['p']}"; then coreFailExitWithUsage "-p argument wrong value: ${_opts['p']}"; fi
 
     readonly -A _opts
 }
@@ -229,16 +238,39 @@ declare luks_container_loop_dev
 declare luks_mapped_device
 declare -i backup_succeeded
 
+function closeLuksDevice {
+    if [[ -n ${luks_mapped_device:-} ]]; then
+        printf2 "Closing LUKS device $luks_mapped_device..."
+        cryptsetup close "$luks_mapped_device" && luks_mapped_device=
+        F_COLOR=cyan echo2 " Done."
+    fi
+}
+
+function unmountLuksFile {
+    if [[ -n ${luks_container_loop_dev:-} ]]; then
+        printf2 "Unmounting LUKS file from $luks_container_loop_dev..."
+        losetup -d "$luks_container_loop_dev" && luks_container_loop_dev=
+        F_COLOR=cyan echo2 " Done."
+    fi
+}
+
+declare -r par2_cmd="par2"
+
 ########################################
 # main
 ########################################
 main() {
     coreEnsureCommands blkid mksquashfs cryptsetup
 
+    if ! coreCommandsArePresent "$par2_cmd"; then
+        F_COLOR=yellow echo2 "$par2_cmd command not found. Recovery data will not be generated."
+        uiPressEnterToContinue
+    fi
+
     inputExitIfNoArguments "$@"
 
     declare -A opts
-    getInputArgs opts ':i:o:n:s' "$@"
+    getInputArgs opts ':i:o:n:sp:' "$@"
 
     normalizeValidateInputArgs opts
 
@@ -246,6 +278,8 @@ main() {
     declare -r friendly_device_name="${opts['n']}"
     declare -r output_dir="${opts['o']}"
     declare -ri skip_luks="${opts['s']}"
+
+    declare -ri parity_amount="${opts['p']}"
 
     # Store input size
     getStorageObjectSize "$input_object" input_size
@@ -424,8 +458,29 @@ main() {
     printf2 "LUKS backup saved as "; F_COLOR=magenta echo2 "$output_file"
     backup_succeeded=1
 
+    closeLuksDevice
+    unmountLuksFile
+
+    if [[ parity_amount -gt 0 ]]; then
+        echo2
+        echo2 "Will now add recovery data"
+        uiPressEnterToContinue
+
+        if coreCommandsArePresent "$par2_cmd"; then
+            $par2_cmd create -r$parity_amount -m32 -- "$output_file"
+            $par2_cmd verify -- "$output_file.par2"
+        else
+            echo2 "$par2_cmd command not found. Skipping recovery data generation."
+        fi
+    else
+        echo2 "Recovery data generation skipped."
+    fi
+
+    echo2
+    F_COLOR=green echo2 "Backup finished"
     uiPressEnterToContinue
-    exit 0
+
+    return 0
 }
 
 declare -i cleanup_run=0
@@ -435,26 +490,18 @@ function cleanup {
 
     tput cnorm || true # reset cursor to normal
 
-    if [[ -n ${luks_mapped_device:-} ]]; then
-        printf2 "Removing LUKS mapping $luks_mapped_device..."
-        cryptsetup close "$luks_mapped_device"
-        F_COLOR=cyan echo2 " Done."
-    fi
-    if [[ -n ${luks_container_loop_dev:-} ]]; then
-        printf2 "Unmounting LUKS file from $luks_container_loop_dev..."
-        losetup -d "$luks_container_loop_dev"
-        F_COLOR=cyan echo2 " Done."
-    fi
+    closeLuksDevice
+    unmountLuksFile
 
     if [[ -n ${luks_file_created:-} && ${backup_succeeded:-0} -eq 0 ]]; then
         printf2 "Removing LUKS file $luks_file_created..."
-        rm "$luks_file_created"
+        rm "$luks_file_created" && luks_file_created=
         F_COLOR=cyan echo2 " Done."
     fi
 
     if [[ ${temp_dir:-} == /tmp/* ]]; then
         printf2 "Removing temp dir..."
-        rm -r "$temp_dir" && echo2 " Removed.";
+        rm -r "$temp_dir" && temp_dir= && echo2 " Removed.";
     fi
 
     calculateLuksOverheadCleanup
