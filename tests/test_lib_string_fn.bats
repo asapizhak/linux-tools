@@ -33,3 +33,23 @@ function setup() {
 
     assert_equal "$out" "lala"
 }
+
+@test "isPositiveIntString returns ok on 1 digit positives" {
+    isPositiveIntString 5
+}
+
+@test "isPositiveIntString returns ok on 2 digit positives" {
+    isPositiveIntString 10
+}
+
+@test "isPositiveIntString returns ok on 3 digit positives" {
+    isPositiveIntString 541
+}
+
+@test "isPositiveIntString fails on 1-digit negative numbers" {
+    ! isPositiveIntString -3
+}
+
+@test "isPositiveIntString fails on 2-digit negative numbers" {
+    ! isPositiveIntString -10
+}
