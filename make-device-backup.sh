@@ -281,11 +281,6 @@ main() {
 
     declare -ri parity_amount="${opts['p']}"
 
-    # Store input size
-    getStorageObjectSize "$input_object" input_size
-    numDisplayAsSizeEx $input_size input_size_display
-    echo2 "Input size: $input_size_display"
-
     declare cur_date; cur_date="$(date +"%Y%m%d_%H%M")"
     declare -r sqfs_basename="${friendly_device_name}_$cur_date.sqfs"
 
@@ -309,15 +304,19 @@ main() {
     declare sqfs_file="$temp_dir/$sqfs_basename"
     declare -i input_is_sqfs=0
 
+    # Store input size
+    getStorageObjectSize "$input_object" input_size
+    numDisplayAsSizeEx $input_size input_size_display
+
     ########################################
     # Determine input type
     if [[ -b $input_object ]]; then
-        echo2 "Input is a block device."
+        echo2 "Input is a block device of size $input_size_display"
     elif [[ -d $input_object ]]; then
-        echo2 "Input is a directory."
+        echo2 "Input is a directory of size $input_size_display"
     elif [[ -f $input_object ]]; then
         declare file_type; file_type="$(file -bE "$input_object" | awk -F ',' '{print $1}')"
-        printf2 "Input is a file or type"; F_COLOR=magenta echo2 " $file_type"
+        printf2 "Input is a file of size $input_size_display and type"; F_COLOR=magenta echo2 " $file_type"
 
         # if input is already sqfs file, take it.
         if [[ $file_type == *"Squashfs filesystem"* ]]; then
@@ -426,7 +425,7 @@ main() {
     cryptsetup open --type luks "$luks_container_loop_dev" "$friendly_device_name"
     luks_mapped_device="$(cryptsetup status "$friendly_device_name" | head -n 1 | awk '{print $1}'; true)"
     tput rc; tput ed
-    F_COLOR='green' printf2 "Done as ${COLOR['magenta']}$luks_mapped_device${COLOR['default']}\n"
+    F_COLOR='green' printf2 " Done as ${COLOR['magenta']}$luks_mapped_device${COLOR['default']}\n"
 
     # confirm partition has enough free space for sqfs
     declare -ir partition_size=$(blockdev --getsize64 "/dev/mapper/$friendly_device_name")
@@ -452,8 +451,22 @@ main() {
 
     echo2
     echo2 "Verifying sqfs and LUKS checksums (they should match)"
-    sha1sum -b "$sqfs_file"
-    sha1sum -b "$luks_mapped_device"
+    declare sha_sqfs; sha_sqfs="$(sha1sum -b "$sqfs_file" | awk 'print $1')"
+    declare sha_device; sha_device="$(sha1sum -b "$luks_mapped_device" | awk 'print $1')"
+
+    echo2 "$sha_sqfs $sqfs_file"
+    if [[ $sha_sqfs == "$sha_device" ]]; then
+        echo2success "$sha_device $luks_mapped_device"
+        sleep 2
+    else
+        echo2error "$sha_device $luks_mapped_device"
+        echo2error "Checksums don't match, the backup is likely not correct!"
+        uiPressEnterToContinue
+    fi
+
+    printf2 "Calculation sha sum for output file..."
+    sha1sum -b "$output_file" > "$output_file.sha1"
+    echo2success " Done"
 
     printf2 "LUKS backup saved as "; F_COLOR=magenta echo2 "$output_file"
     backup_succeeded=1
@@ -477,7 +490,9 @@ main() {
     fi
 
     echo2
-    F_COLOR=green echo2 "Backup finished"
+    printf2success "Backup finished:"
+    F_COLOR=magenta echo2 " $output_file"
+
     uiPressEnterToContinue
 
     return 0
