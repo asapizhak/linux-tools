@@ -109,3 +109,32 @@ function fsIsLoopDevice {
 
     [[ $dev_type = "loop" ]]
 }
+
+function fsIsBlockDeviceFile {
+    declare -r _file="$1"
+    declare -n out_is_mountable=$2
+
+    declare info status
+    set +e
+    info="$(blkid --probe --output export "$_file")"
+    status=$?
+    set -e
+
+    if [[ $status -eq 2 ]]; then
+        out_is_mountable=0
+        return 0
+    elif [[ $status -ne 0 ]]; then
+        out_is_mountable=0
+        return $status
+    fi
+
+    declare -A data=()
+    declare key value
+    while IFS='=' read -r key value; do
+        data["$key"]="$value"
+    done <<< "$info"
+
+    #shellcheck disable=SC2034
+    out_is_mountable=1
+    F_COLOR=gray echo2 "$(basename "$_file"): USAGE=${data['USAGE']:-}; TYPE=${data['TYPE']:-}; PTTYPE=${data['PTTYPE']:-}"
+}
