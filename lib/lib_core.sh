@@ -187,3 +187,20 @@ function trapWithSigname { # https://stackoverflow.com/a/2183063
         trap "f_proxy $func $sig" "$sig"
     done
 }
+
+#
+#    explanation?
+function coreEnsureRunByRoot {
+    declare -r explanation="${1:-}"
+
+    printf2 "Checking if run by root..."
+    if [[ $EUID -eq 0 ]]; then
+        echo2success " OK"
+        return 0
+    else
+        echo2error " Fail"
+        if [[ -n $explanation ]]; then coreFailExit "Script need to be run by root user - $explanation"
+        else coreFailExit "Script need to be run by root user"
+        fi
+    fi
+}
