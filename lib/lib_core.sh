@@ -120,7 +120,7 @@ function echo2warn {
     F_COLOR=yellow echo2 "$@"
 }
 
-function echo2fail {
+function echo2error {
     F_COLOR=red echo2 "$@"
 }
 
