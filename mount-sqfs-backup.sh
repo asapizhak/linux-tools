@@ -19,9 +19,9 @@ function usage {
     # shellcheck disable=SC2317
     echo2 "\
 Usage:
-    $script_name -i <image_file> -d <dir_for_partition_mount>
+    $script_name -i <input_object> -d <dir_for_partition_mount>
 
-    -i                       specifies sqfs file that will be mounted
+    -i                       specifies sqfs file or device that will be mounted
     -d                       specifies the directory in which subdirs
                              will be created for image partitions
 Exit codes:
@@ -31,14 +31,16 @@ Exit codes:
 }
 
 function validateInputArgs {
-    declare -r image_file=$1
-    declare -r dir_partition_mount=$2
+    declare -n _opts=$1
 
-    [[ -z $image_file ]] && coreFailExitWithUsage
-    if [[ ! -f $image_file ]] || [[ ! -r $image_file ]]; then
-        coreFailExit "Image file '$image_file' does not exist or has no read permission."
-    fi
+    # input object
+    declare -r input_object="${_opts['i']}"
+    [[ -z $input_object ]] && coreFailExitWithUsage
+    if [[ ! -e $input_object ]]; then coreFailExit "Input object '$input_object' does not exist."; fi
+    if [[ ! -r $input_object ]]; then coreFailExit "Input object '$input_object' has no read permission."; fi
 
+    # dir for mounts
+    declare -r dir_partition_mount="${_opts['d']}"
     if [[ -z "$dir_partition_mount" ]]; then
         coreFailExitWithUsage "Destination directory does not exist ($dir_partition_mount)"; fi
     if [[ ! -d "$dir_partition_mount" ]]; then
@@ -47,37 +49,31 @@ function validateInputArgs {
         coreFailExit "Destination directory is not writable ($dir_partition_mount)"; fi
 }
 
-# getSqfsFileList
+# getSqfsMountableFiles
 #    dir_path
 #    out_files_arr
-function getSqfsFileList {
+function getSqfsMountableFiles {
     declare -r dir="$1"
     declare -n out_files=$2
 
     [[ ! -d $dir ]] && coreFailExit "'$dir' is not a directory."
     [[ ! -x $dir ]] && coreFailExit "'$dir' has no traverse access."
 
-    declare -a files_img=()
-    declare -a files_other=()
+    out_files=()
 
-    declare file
+    declare file is_blockdev_file
     while IFS= read -r file; do
-        case "$file" in
-        *.img)
-            files_img+=("$file")
-            ;;
-        *)
-            files_other+=("$file")
-            ;;
-        esac
-    done <<<"$(find "$dir" -type f)"
 
-    # shellcheck disable=SC2034
-    out_files=( "${files_img[@]}" "${files_other[@]}" )
+        fsIsBlockDeviceFile "$file" is_blockdev_file
+
+        if [[ $is_blockdev_file -eq 1 ]]; then
+            out_files+=("$file")
+        fi
+    done <<<"$(find "$dir" -type f)"
 }
 
 declare sqfs_mount_dir
-sqfs_mount_dir=$(mktemp -d)
+sqfs_mount_dir=$(mktemp -dt -- "mount-sqfs-backup-XXX")
 
 #
 #    path
@@ -123,11 +119,11 @@ function getImageToMount {
 declare image_mount_device=''
 
 #
-#    image_file
+#    input_object
 function mountImageFile {
-    declare -r image_file="$1"
+    declare -r input_object="$1"
 
-    image_mount_device=$(losetup --find --show -r -P "$image_file")
+    image_mount_device=$(losetup --find --show -r -P "$input_object")
     uiPushColor2 'green'
     echo2 "Image mounted to $image_mount_device"
     uiPopColor2
@@ -271,32 +267,47 @@ function checkAndMountPartitionToSubdir {
 main() {
     coreEnsureCommands mktemp losetup realpath blkid blockdev cut mountpoint
 
+    coreEnsureRunByRoot "We need to be able to mount/unmount things"
+
     inputExitIfNoArguments "$@"
 
     declare -A opts
     getInputArgs opts ':i:d:' "$@"
 
-    declare -r image_file="${opts['i']:-}"
-    declare -r dir_partition_mount=$"${opts['d']:-}"
-    validateInputArgs "$image_file" "$dir_partition_mount"
+    validateInputArgs opts
+
+    declare -r input_object="${opts['i']}"
+    declare -r dir_partition_mount=$"${opts['d']}"
 
     # ? if luks-encrypted (have .enc.sqfs extension) - decrypt device
     # - mount sqfs image into temp dir
-    mount -o loop --read-only "$image_file" "$sqfs_mount_dir"
-    sqfs_mounted=1
-    declare sqfs_loop_device
-    sqfs_loop_device=$(losetup -j "$image_file" | cut -d ':' -f 1)
-    uiPushColor2 'green'
-    echo2 "Sqfs mounted to $sqfs_loop_device, $sqfs_mount_dir"
-    uiPopColor2
+    printf2 "Mounting input"
+    if [[ -b $input_object ]]; then
+        printf2 " device..."
+        mount --read-only "$input_object" "$sqfs_mount_dir"
+        sqfs_mounted=1
+        F_COLOR=magenta echo2 " $sqfs_mount_dir"
+    elif [[ -f $input_object ]]; then
+        printf2 " file..."
+        mount -o loop --read-only "$input_object" "$sqfs_mount_dir"
+        sqfs_mounted=1
+        declare sqfs_loop_device
+        sqfs_loop_device=$(losetup -j "$input_object" | cut -d ':' -f 1)
+        F_COLOR=magenta echo2 " $sqfs_loop_device $sqfs_mount_dir"
+    else
+        coreFailExit "This type of input object is not supported"
+    fi
 
     # - allow user to choose img file to mount
+    echo2 "Scanning files..."
     # shellcheck disable=SC2034
     declare -a sqfs_files
-    getSqfsFileList "$sqfs_mount_dir" sqfs_files
+    getSqfsMountableFiles "$sqfs_mount_dir" sqfs_files
 
     declare image_to_mount
     getImageToMount sqfs_files image_to_mount
+
+    # TODO: determine if selected image is a partition or has partition table, and mount accordingly.
 
     echo2 "Will mount '$(getSqfsRelativePath "$image_to_mount")'"
     # - mount selected img file from that dir using losetup -P for partition devices
