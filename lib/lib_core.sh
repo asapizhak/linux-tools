@@ -112,6 +112,18 @@ function echo2 {
     fi
 }
 
+function echo2success {
+    F_COLOR=green echo2 "$@"
+}
+
+function echo2warn {
+    F_COLOR=yellow echo2 "$@"
+}
+
+function echo2fail {
+    F_COLOR=red echo2 "$@"
+}
+
 # Use F_COLOR with color name for colored output
 function printf2 {
     declare color_enabled=0
@@ -138,6 +150,18 @@ function printf2 {
         # shellcheck disable=SC2059
         printf >&2 "${COLOR[$ret_color_name]}"
     fi
+}
+
+function printf2success {
+    F_COLOR=green printf2 "$@"
+}
+
+function printf2warn {
+    F_COLOR=yellow printf2 "$@"
+}
+
+function printf2fail {
+    F_COLOR=red printf2 "$@"
 }
 
 function trapWithSigname { # https://stackoverflow.com/a/2183063
