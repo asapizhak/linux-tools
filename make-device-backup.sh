@@ -174,7 +174,10 @@ function dumpToSqfs {
     declare mksquashfs_version
     mksquashfs_version="$(mksquashfs -version | grep 'mksquashfs version' | awk '{print $3}' )"
 
+    declare -i is_ver_less_than_4p4=0
     declare -i is_ver_lessthan_4p5=0
+
+    pkgAreEqualVersionStrings is_ver_less_than_4p4 "$mksquashfs_version" 'lt' '4.4'
     pkgAreEqualVersionStrings is_ver_lessthan_4p5 "$mksquashfs_version" 'lt' '4.5'
 
     echo2 "Will create $_sqfs_file"
@@ -184,6 +187,8 @@ function dumpToSqfs {
     declare -r img_basename="${_img_name_wo_ext}.img"
 
     declare _source=
+    declare compressor=zstd
+    declare -a compressor_opts=('-Xcompression-level' '16')
     declare -a _rootdir_definition=()
     declare -a _pseudofile=("-p" "$img_basename f 444 root root dd 2>/dev/null if=$_input_object bs=1M")
 
@@ -192,7 +197,15 @@ function dumpToSqfs {
         _pseudofile=()
     fi
 
-    if [[ $is_ver_lessthan_4p5 -eq 1 ]]; then
+    if [[ $is_ver_less_than_4p4 -eq 1 ]]; then
+        F_COLOR=gray echo2 "Found old mksquashfs version $mksquashfs_version (older than 4.4)"
+        [[ -z $_source ]] && {
+            _source="sqfsroot"
+            mkdir "$_source"
+        }
+        compressor=xz
+        compressor_opts=()
+    elif [[ $is_ver_lessthan_4p5 -eq 1 ]]; then
         F_COLOR=gray echo2 "Found mksquashfs version $mksquashfs_version (older than 4.5)"
         [[ -z $_source ]] && {
             _source="sqfsroot"
@@ -206,7 +219,7 @@ function dumpToSqfs {
         _rootdir_definition=("-p" "d 644 0 0")
     fi
 
-    declare -a common_opts=('-comp' 'zstd' '-all-root' '-Xcompression-level' '16')
+    declare -a common_opts=('-all-root' '-comp' "$compressor" "${compressor_opts[@]}")
 
     declare -a args=("$_source" "$_sqfs_file" "${common_opts[@]}" "${_rootdir_definition[@]}" "${_pseudofile[@]}")
     mksquashfs "${args[@]}"
@@ -260,12 +273,7 @@ declare -r par2_cmd="par2"
 # main
 ########################################
 main() {
-    coreEnsureCommands blkid mksquashfs cryptsetup
-
-    if ! coreCommandsArePresent "$par2_cmd"; then
-        F_COLOR=yellow echo2 "$par2_cmd command not found. Recovery data will not be generated."
-        uiPressEnterToContinue
-    fi
+    coreEnsureCommands blkid mksquashfs
 
     inputExitIfNoArguments "$@"
 
@@ -280,6 +288,15 @@ main() {
     declare -ri skip_luks="${opts['s']}"
 
     declare -ri parity_amount="${opts['p']}"
+
+    if [[ $skip_luks -ne 1 ]]; then
+        coreEnsureCommands cryptsetup
+    fi
+
+    if ! coreCommandsArePresent "$par2_cmd"; then
+        F_COLOR=yellow echo2 "$par2_cmd command not found. Recovery data will not be generated."
+        uiPressEnterToContinue
+    fi
 
     declare cur_date; cur_date="$(date +"%Y%m%d_%H%M")"
     declare -r sqfs_basename="${friendly_device_name}_$cur_date.sqfs"
@@ -302,6 +319,11 @@ main() {
     pushd "$temp_dir" >/dev/null
 
     declare sqfs_file="$temp_dir/$sqfs_basename"
+
+    if [[ $skip_luks -eq 1 ]]; then
+        sqfs_file="$output_dir/$sqfs_basename"
+    fi
+
     declare -i input_is_sqfs=0
 
     # Store input size
@@ -337,6 +359,11 @@ main() {
 
     if [[ $input_is_sqfs -eq 0 ]]; then
         echo2 "Dumping to SQFS..."
+        # sanity check before writing sqfs file
+        if [[ -e $sqfs_file ]]; then
+            coreFailExit "$sqfs_file: Sqfs file already exists. Won't overwrite!"
+        fi
+
         dumpToSqfs "$input_object" "$friendly_device_name" "$sqfs_file"
     fi
 
@@ -366,7 +393,7 @@ main() {
         fi
         dd if="$sqfs_file" of="$output_file" bs=1M
         echo2 "Done."
-        printf2 "Output file is"; F_COLOR=magenta printf2 "$output_file"
+        printf2 "Output file is "; F_COLOR=magenta printf2 "$output_file"
         exit 0
     fi
 
