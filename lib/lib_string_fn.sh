@@ -28,7 +28,7 @@ function strPadString {
     printf -v f_out "%$max.${max#-}s" "$str"
 }
 
-function isPositiveIntString {
+function strIsPositiveIntString {
     declare -r str=$1
     [[ $str =~ ^[0-9]+$ ]] && return 0 || return 1
 }

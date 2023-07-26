@@ -60,7 +60,7 @@ function readOffsetFromFile {
     if [[ "${offset_str//[[:space:]]/}" != "${last_line//[[:space:]]/}" ]]; then
         coreFailExit "Malformed file. Expected only offset on the last line, got '$last_line'. If hash was already calculated, just delete it from last line."
     fi
-    if ! isPositiveIntString "$offset_str"; then
+    if ! strIsPositiveIntString "$offset_str"; then
         coreFailExit "Malformed file. Offset expected at line start, got '$offset_str'."
     fi
 
@@ -96,7 +96,7 @@ main() {
     [[ "${opts[f]+value}" ]] && overwrite_output_file=1
 
     declare -r part_size_blocks="${opts['b']:-1024}"
-    if ! isPositiveIntString "$part_size_blocks"; then coreFailExit "Invalid block size specified '$part_size_blocks'."; fi
+    if ! strIsPositiveIntString "$part_size_blocks"; then coreFailExit "Invalid block size specified '$part_size_blocks'."; fi
 
     declare -i input_size_bytes=-1
     getStorageObjectSize "$input_file" input_size_bytes

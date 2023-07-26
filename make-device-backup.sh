@@ -82,7 +82,7 @@ function normalizeValidateInputArgs {
 
     # parity amount
     _opts['p']="${_opts['p']:-10}"
-    if ! isPositiveIntString "${_opts['p']}"; then coreFailExitWithUsage "-p argument wrong value: ${_opts['p']}"; fi
+    if ! strIsPositiveIntString "${_opts['p']}"; then coreFailExitWithUsage "-p argument wrong value: ${_opts['p']}"; fi
 
     readonly -A _opts
 }
