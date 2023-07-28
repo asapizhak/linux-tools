@@ -28,8 +28,25 @@ if [[ ${core__inited:-0} -ne 1 ]]; then
     COLOR['gray']='\033[90m'
     readonly -A COLOR
 
+    PROGRESS_ABET=('/' '-' '\' '|' '/' '-')
+    # usually there's one progress ons screen so one idx is enough
+    declare -g core_progress_idx=0
+
     declare -ag core_color_names_stack=()
 fi
+
+function coreProgressStart {
+    printf2 '%s' "${PROGRESS_ABET[$core_progress_idx]}"
+}
+
+function coreProgressIncrement {
+    core_progress_idx=$(( (core_progress_idx+1) % ${#PROGRESS_ABET[@]} ))
+    printf2 '\b%s' "${PROGRESS_ABET[$core_progress_idx]}"
+}
+
+function coreProgressEnd {
+    printf2 '\b'
+}
 
 function coreFailExit {
     declare -r msg=${1:-""}
