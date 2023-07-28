@@ -26,6 +26,7 @@ if [[ ${core__inited:-0} -ne 1 ]]; then
     COLOR['cyan']='\033[0;36m'
     COLOR['white']='\033[0;37m'
     COLOR['gray']='\033[90m'
+    COLOR['grey']='\033[90m'
     readonly -A COLOR
 
     PROGRESS_ABET=('/' '-' '\' '|' '/' '-')
@@ -210,12 +211,12 @@ function trapWithSigname { # https://stackoverflow.com/a/2183063
 function coreEnsureRunByRoot {
     declare -r explanation="${1:-}"
 
-    printf2 "Checking if run by root..."
+    printf2 "Running by root?.."
     if [[ $EUID -eq 0 ]]; then
-        echo2success " OK"
+        echo2success " YES"
         return 0
     else
-        echo2error " Fail"
+        echo2error " NO"
         if [[ -n $explanation ]]; then coreFailExit "Script need to be run by root user - $explanation"
         else coreFailExit "Script need to be run by root user"
         fi
