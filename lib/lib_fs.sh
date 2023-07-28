@@ -138,3 +138,65 @@ function fsIsBlockDeviceFile {
     out_is_mountable=1
     F_COLOR=gray echo2 "$(basename "$_file"): USAGE=${data['USAGE']:-}; TYPE=${data['TYPE']:-}; PTTYPE=${data['PTTYPE']:-}"
 }
+
+# Returns key-value array with device info, or empty array if input is not block device.
+#   input_object
+#   out_attrs ('TYPE', 'USAGE', 'DEVNAME', etc)
+#   out_attrs_found  --  1 if attributes found, 0 if not (basically tells if object can be identified and mountedas block device)
+function fsGetBlockDeviceAttrs {
+    coreEnsureCommands blkid
+    declare -r _input_object="$1"
+    if [[ -n ${2:-} ]]; then declare -n out_attrs=$2; else declare -A out_attrs=(); fi
+    if [[ -n ${3:-} ]]; then declare -n out_attrs_found=$3; else declare -i out_attrs_found=0; fi
+
+    set +e
+    declare info_raw; info_raw="$( \
+        blkid --probe --output export "$_input_object"; \
+        declare c=$?; if [[ $c -eq 0 || $c -eq 2 ]]; then return 0; else return $c; fi; \
+    )"
+    declare -r status=$?
+    set -e
+
+    if [[ $status -eq 2 ]]; then # Not a block device or no info found
+        out_attrs=()
+        out_attrs_found=0
+        return 0
+
+    elif [[ $status -ne 0 ]]; then
+        out_attrs=()
+        out_attrs_found=0
+        return $status
+    fi
+
+    out_attrs_found=1
+
+    out_attrs=()
+    while IFS='=' read -r key value; do
+        # shellcheck disable=SC2034
+        [[ -n $key ]] && out_attrs["$key"]="$value"
+    done <<< "$info_raw"
+
+    # sometimes status code is ok but output is empty
+    if [[ ${#out_attrs[@]} -lt 1 ]]; then
+        # shellcheck disable=SC2034
+        out_attrs_found=0
+    fi
+}
+
+function fsIsLuksContainer {
+    declare -r _input_object="$1"
+
+    declare -A _obj_attrs
+    fsGetBlockDeviceAttrs "$_input_object" _obj_attrs
+
+    [[ ${_obj_attrs['TYPE']:-} == "crypto_LUKS" ]]
+}
+
+function fsIsSqfsContainer {
+    declare -r _input_object="$1"
+
+     declare -A _obj_attrs
+    fsGetBlockDeviceAttrs "$_input_object" _obj_attrs
+
+    [[ ${_obj_attrs['TYPE']:-} == "squashfs" ]]
+}
