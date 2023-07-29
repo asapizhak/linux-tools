@@ -22,11 +22,11 @@ function usage {
 Usage:
     $script_name -i <input_object> -n <friendly_backup_name> -o <output_file_dir>
 
-    -i                        Input file-, dir-, device path
-    -n                        Friendly name of the backup. Sqfs and .img will
+    -i <input object>         Input file-, dir-, or device-path
+    -n <name>                 Friendly name of the backup. Sqfs and .img will
                               have this name. A-Za-z and -_ allowed.
-    -o                        Output file will be created there. Should exist.
-                              Will be PWD, if omitted.
+    -o <output_file_dir>      Output file will be created in this dir.
+                              It should exist. Will be set to PWD, if omitted.
     -s                        Sqfs only - skips LUKS file creation, SQFS will be
                               the output file then.
     -p <amount>               Adds <amount> of recovery data, in integer
