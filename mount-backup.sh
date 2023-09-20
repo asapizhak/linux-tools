@@ -233,6 +233,8 @@ function getMountableFiles {
     declare file
     declare -A attrs
 
+    declare -i maxFiles
+    maxFiles=10
     coreProgressStart
     while IFS= read -r file; do
         coreProgressIncrement
@@ -240,7 +242,13 @@ function getMountableFiles {
         if [[ ${attrs['USAGE']:-} == 'filesystem' || -n ${attrs['PTTYPE']:-} ]]; then
             out_files+=("$file")
         fi
-    done < <(find "$dir" -type f)
+        maxFiles=$((maxFiles-1))
+        if [[ $maxFiles == 0 ]]; then
+            coreProgressEnd
+            echo2 "Too many files, search stopped."
+            return
+        fi
+    done < <(find "$dir" -maxdepth 1 -type f)
     coreProgressEnd
 }
 
@@ -286,7 +294,7 @@ function selectFileToMount {
     declare -ri file_count=${#list_files[@]}
 
     if [[ $file_count -eq 0 ]]; then
-        coreFailExit "No files to choose from"
+        out_selected_file=""
     elif [[ $file_count -eq 1 ]]; then
         out_selected_file="${list_files[0]}"
     else
@@ -492,6 +500,13 @@ main() {
 
     declare file_to_mount
     selectFileToMount mountable_files getDisplayFromFile file_to_mount
+
+    if [[ $file_to_mount == "" ]]; then
+        echo2warn "No mountable files in top directory"
+        echo2 "Please, find and mount manually while SQFS stays mounted."
+        uiPressEnterToContinue
+        exit 0
+    fi
 
     declare file_to_mount_rel_path
     # getDisplayFromFile "$file_to_mount" file_to_mount_rel_path
